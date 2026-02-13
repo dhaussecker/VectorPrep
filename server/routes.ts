@@ -12,6 +12,17 @@ function requireAuth(req: any, res: any, next: any) {
   next();
 }
 
+function requireAdmin(req: any, res: any, next: any) {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+  const user = req.user as User;
+  if (!user.isAdmin) {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+}
+
 function generateFromTemplate(
   template: { templateText: string; solutionTemplate: string; parameters: any },
 ) {
@@ -271,6 +282,153 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error grading answer:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ============ ADMIN ROUTES ============
+
+  app.get("/api/admin/topics", requireAdmin, async (_req, res) => {
+    try {
+      const allTopics = await storage.getTopics();
+      res.json(allTopics);
+    } catch (err) {
+      console.error("Error fetching topics:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/topics", requireAdmin, async (req, res) => {
+    try {
+      const { name, description, icon, orderIndex } = req.body;
+      if (!name || !description) {
+        return res.status(400).json({ message: "Name and description are required" });
+      }
+      const topic = await storage.createTopic({ name, description, icon: icon || "NEW", orderIndex: orderIndex ?? 0 });
+      res.json(topic);
+    } catch (err) {
+      console.error("Error creating topic:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/topics/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await storage.updateTopic(id, req.body);
+      if (!updated) return res.status(404).json({ message: "Topic not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating topic:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/admin/topics/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteTopic(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting topic:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/topics/:topicId/cards", requireAdmin, async (req, res) => {
+    try {
+      const cards = await storage.getLearnCardsByTopic(req.params.topicId);
+      res.json(cards);
+    } catch (err) {
+      console.error("Error fetching cards:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/cards", requireAdmin, async (req, res) => {
+    try {
+      const { topicId, title, content, quickCheck, quickCheckAnswer, orderIndex } = req.body;
+      if (!topicId || !title || !content) {
+        return res.status(400).json({ message: "topicId, title, and content are required" });
+      }
+      const card = await storage.createLearnCard({
+        topicId, title, content,
+        quickCheck: quickCheck || null,
+        quickCheckAnswer: quickCheckAnswer || null,
+        orderIndex: orderIndex ?? 0,
+      });
+      res.json(card);
+    } catch (err) {
+      console.error("Error creating card:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/cards/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateLearnCard(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ message: "Card not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating card:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/admin/cards/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteLearnCard(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting card:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/topics/:topicId/templates", requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getQuestionTemplatesByTopic(req.params.topicId);
+      res.json(templates);
+    } catch (err) {
+      console.error("Error fetching templates:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/templates", requireAdmin, async (req, res) => {
+    try {
+      const { topicId, templateText, solutionTemplate, answerType, parameters } = req.body;
+      if (!topicId || !templateText || !solutionTemplate || !parameters) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+      const template = await storage.createQuestionTemplate({
+        topicId, templateText, solutionTemplate,
+        answerType: answerType || "numeric",
+        parameters,
+      });
+      res.json(template);
+    } catch (err) {
+      console.error("Error creating template:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateQuestionTemplate(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ message: "Template not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating template:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/admin/templates/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteQuestionTemplate(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting template:", err);
       res.status(500).json({ message: "Internal server error" });
     }
   });

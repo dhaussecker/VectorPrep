@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { LayoutDashboard, BookOpen, ClipboardCheck, BarChart3, GraduationCap, LogOut, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, BookOpen, ClipboardCheck, BarChart3, GraduationCap, LogOut, Sun, Moon, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -72,6 +72,27 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {user?.isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    data-active={location === "/admin"}
+                    className={location === "/admin" ? "bg-sidebar-accent" : ""}
+                  >
+                    <Link href="/admin" data-testid="link-nav-admin">
+                      <Settings className="w-4 h-4" />
+                      <span>Content Manager</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 space-y-3">
         <div className="flex items-center gap-3">

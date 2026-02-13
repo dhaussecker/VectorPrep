@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { RichContent } from "@/components/rich-content";
 import type { Topic, LearnCard } from "@shared/schema";
 
 type LearnData = {
@@ -197,9 +198,7 @@ function LearnSession({ topicId }: { topicId: string }) {
                 <CardTitle className="text-lg">{currentCard.title}</CardTitle>
               </CardHeader>
               <CardContent className="p-5 pt-0">
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed whitespace-pre-wrap">
-                  {currentCard.content}
-                </div>
+                <RichContent content={currentCard.content} className="text-sm" />
 
                 {currentCard.quickCheck && (
                   <div className="mt-5">

@@ -15,6 +15,7 @@ import TopicsPage from "@/pages/topics";
 import LearnPage from "@/pages/learn";
 import PracticePage from "@/pages/practice";
 import ProgressPage from "@/pages/progress";
+import AdminPage from "@/pages/admin";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/practice" component={PracticePage} />
       <Route path="/practice/:topicId" component={PracticePage} />
       <Route path="/progress" component={ProgressPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

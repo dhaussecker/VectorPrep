@@ -37,6 +37,15 @@ export interface IStorage {
   getPracticeAttempt(id: string): Promise<{ id: string; userId: string; templateId: string; topicId: string; questionText: string; correctAnswer: string; solutionSteps: string } | undefined>;
 
   getTopicCount(): Promise<number>;
+
+  updateTopic(id: string, data: Partial<InsertTopic>): Promise<Topic | undefined>;
+  deleteTopic(id: string): Promise<void>;
+
+  updateLearnCard(id: string, data: Partial<InsertLearnCard>): Promise<LearnCard | undefined>;
+  deleteLearnCard(id: string): Promise<void>;
+
+  updateQuestionTemplate(id: string, data: Partial<InsertQuestionTemplate>): Promise<QuestionTemplate | undefined>;
+  deleteQuestionTemplate(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -161,6 +170,40 @@ export class DatabaseStorage implements IStorage {
   async getTopicCount(): Promise<number> {
     const [result] = await db.select({ value: count() }).from(topics);
     return result.value;
+  }
+
+  async updateTopic(id: string, data: Partial<InsertTopic>): Promise<Topic | undefined> {
+    const [updated] = await db.update(topics).set(data).where(eq(topics.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTopic(id: string): Promise<void> {
+    await db.delete(learnCards).where(eq(learnCards.topicId, id));
+    await db.delete(questionTemplates).where(eq(questionTemplates.topicId, id));
+    await db.delete(userLearnProgress).where(eq(userLearnProgress.topicId, id));
+    await db.delete(userPracticeProgress).where(eq(userPracticeProgress.topicId, id));
+    await db.delete(practiceAttempts).where(eq(practiceAttempts.topicId, id));
+    await db.delete(topics).where(eq(topics.id, id));
+  }
+
+  async updateLearnCard(id: string, data: Partial<InsertLearnCard>): Promise<LearnCard | undefined> {
+    const [updated] = await db.update(learnCards).set(data).where(eq(learnCards.id, id)).returning();
+    return updated;
+  }
+
+  async deleteLearnCard(id: string): Promise<void> {
+    await db.delete(userLearnProgress).where(eq(userLearnProgress.learnCardId, id));
+    await db.delete(learnCards).where(eq(learnCards.id, id));
+  }
+
+  async updateQuestionTemplate(id: string, data: Partial<InsertQuestionTemplate>): Promise<QuestionTemplate | undefined> {
+    const [updated] = await db.update(questionTemplates).set(data).where(eq(questionTemplates.id, id)).returning();
+    return updated;
+  }
+
+  async deleteQuestionTemplate(id: string): Promise<void> {
+    await db.delete(userPracticeProgress).where(eq(userPracticeProgress.questionTemplateId, id));
+    await db.delete(questionTemplates).where(eq(questionTemplates.id, id));
   }
 }
 

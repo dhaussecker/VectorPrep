@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { RichContent } from "@/components/rich-content";
 import type { Topic } from "@shared/schema";
 
 type GeneratedQuestion = {
@@ -181,9 +182,7 @@ function PracticeSession({ topicId }: { topicId: string }) {
                   </div>
                 </CardHeader>
                 <CardContent className="p-5 pt-0">
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap" data-testid="text-question">
-                    {question.questionText}
-                  </div>
+                  <RichContent content={question.questionText} className="text-sm" />
                 </CardContent>
               </Card>
 
@@ -242,8 +241,8 @@ function PracticeSession({ topicId }: { topicId: string }) {
 
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Solution Steps:</p>
-                      <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/50 rounded-md p-3" data-testid="text-solution-steps">
-                        {gradeResult.solutionSteps}
+                      <div className="bg-muted/50 rounded-md p-3" data-testid="text-solution-steps">
+                        <RichContent content={gradeResult.solutionSteps} className="text-sm text-muted-foreground" />
                       </div>
                     </div>
 
