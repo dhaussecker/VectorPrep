@@ -1,58 +1,65 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { GraduationCap, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
-import { loginSchema, registerSchema } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import type { z } from "zod";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const { login, register } = useAuth();
+  const { login, register: registerUser } = useAuth();
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
 
-  const loginForm = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "" },
-  });
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
-  const registerForm = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { username: "", password: "", displayName: "" },
-  });
+  const [regDisplayName, setRegDisplayName] = useState("");
+  const [regUsername, setRegUsername] = useState("");
+  const [regPassword, setRegPassword] = useState("");
 
-  const handleLogin = async (data: z.infer<typeof loginSchema>) => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginUsername || !loginPassword) {
+      toast({ title: "Please fill in all fields", variant: "destructive" });
+      return;
+    }
     setIsPending(true);
     try {
-      await login(data.username, data.password);
-    } catch (e: any) {
-      toast({ title: "Login failed", description: e.message, variant: "destructive" });
+      await login(loginUsername, loginPassword);
+    } catch (err: any) {
+      toast({ title: "Login failed", description: err.message, variant: "destructive" });
     } finally {
       setIsPending(false);
     }
   };
 
-  const handleRegister = async (data: z.infer<typeof registerSchema>) => {
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regUsername || !regPassword || !regDisplayName) {
+      toast({ title: "Please fill in all fields", variant: "destructive" });
+      return;
+    }
+    if (regPassword.length < 6) {
+      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
     setIsPending(true);
     try {
-      await register(data.username, data.password, data.displayName);
-    } catch (e: any) {
-      toast({ title: "Registration failed", description: e.message, variant: "destructive" });
+      await registerUser(regUsername, regPassword, regDisplayName);
+    } catch (err: any) {
+      toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     } finally {
       setIsPending(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none" />
-      <div className="relative w-full max-w-[900px] grid md:grid-cols-2 gap-6 items-center">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none z-0" />
+      <div className="relative z-10 w-full max-w-[900px] grid md:grid-cols-2 gap-6 items-center">
         <div className="hidden md:flex flex-col gap-6 p-8">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-12 h-12 rounded-md bg-primary">
@@ -86,88 +93,76 @@ export default function AuthPage() {
           </CardHeader>
           <CardContent>
             {isLogin ? (
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
-                  <FormField
-                    control={loginForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter your username" data-testid="input-username" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-username">Username</Label>
+                  <Input
+                    id="login-username"
+                    placeholder="Enter your username"
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                    data-testid="input-username"
+                    autoComplete="username"
                   />
-                  <FormField
-                    control={loginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter your password" data-testid="input-password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Password</Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    data-testid="input-password"
+                    autoComplete="current-password"
                   />
-                  <Button type="submit" className="w-full" disabled={isPending} data-testid="button-login">
-                    {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Sign In
-                  </Button>
-                </form>
-              </Form>
+                </div>
+                <Button type="submit" className="w-full" disabled={isPending} data-testid="button-login">
+                  {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Sign In
+                </Button>
+              </form>
             ) : (
-              <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
-                  <FormField
-                    control={registerForm.control}
-                    name="displayName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="John Doe" data-testid="input-display-name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-display-name">Full Name</Label>
+                  <Input
+                    id="reg-display-name"
+                    placeholder="John Doe"
+                    value={regDisplayName}
+                    onChange={(e) => setRegDisplayName(e.target.value)}
+                    data-testid="input-display-name"
+                    autoComplete="name"
                   />
-                  <FormField
-                    control={registerForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input placeholder="johndoe" data-testid="input-reg-username" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-username">Username</Label>
+                  <Input
+                    id="reg-username"
+                    placeholder="johndoe"
+                    value={regUsername}
+                    onChange={(e) => setRegUsername(e.target.value)}
+                    data-testid="input-reg-username"
+                    autoComplete="username"
                   />
-                  <FormField
-                    control={registerForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Min 6 characters" data-testid="input-reg-password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-password">Password</Label>
+                  <Input
+                    id="reg-password"
+                    type="password"
+                    placeholder="Min 6 characters"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    data-testid="input-reg-password"
+                    autoComplete="new-password"
                   />
-                  <Button type="submit" className="w-full" disabled={isPending} data-testid="button-register">
-                    {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Create Account
-                  </Button>
-                </form>
-              </Form>
+                </div>
+                <Button type="submit" className="w-full" disabled={isPending} data-testid="button-register">
+                  {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Create Account
+                </Button>
+              </form>
             )}
             <div className="mt-4 text-center">
               <button
