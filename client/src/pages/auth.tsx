@@ -13,22 +13,22 @@ export default function AuthPage() {
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
 
-  const [loginUsername, setLoginUsername] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   const [regDisplayName, setRegDisplayName] = useState("");
-  const [regUsername, setRegUsername] = useState("");
+  const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginUsername || !loginPassword) {
+    if (!loginEmail || !loginPassword) {
       toast({ title: "Please fill in all fields", variant: "destructive" });
       return;
     }
     setIsPending(true);
     try {
-      await login(loginUsername, loginPassword);
+      await login(loginEmail, loginPassword);
     } catch (err: any) {
       toast({ title: "Login failed", description: err.message, variant: "destructive" });
     } finally {
@@ -38,7 +38,7 @@ export default function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regUsername || !regPassword || !regDisplayName) {
+    if (!regEmail || !regPassword || !regDisplayName) {
       toast({ title: "Please fill in all fields", variant: "destructive" });
       return;
     }
@@ -48,7 +48,7 @@ export default function AuthPage() {
     }
     setIsPending(true);
     try {
-      await registerUser(regUsername, regPassword, regDisplayName);
+      await registerUser(regEmail, regPassword, regDisplayName);
     } catch (err: any) {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     } finally {
@@ -95,14 +95,15 @@ export default function AuthPage() {
             {isLogin ? (
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-username">Username</Label>
+                  <Label htmlFor="login-email">Email</Label>
                   <Input
-                    id="login-username"
-                    placeholder="Enter your username"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    data-testid="input-username"
-                    autoComplete="username"
+                    id="login-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    data-testid="input-email"
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -136,14 +137,15 @@ export default function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reg-username">Username</Label>
+                  <Label htmlFor="reg-email">Email</Label>
                   <Input
-                    id="reg-username"
-                    placeholder="johndoe"
-                    value={regUsername}
-                    onChange={(e) => setRegUsername(e.target.value)}
-                    data-testid="input-reg-username"
-                    autoComplete="username"
+                    id="reg-email"
+                    type="email"
+                    placeholder="john@example.com"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    data-testid="input-reg-email"
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">

@@ -1,27 +1,49 @@
-import { createContext, useContext, useCallback } from "react";
+import { createContext, useContext, useCallback, useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import type { User } from "@shared/schema";
+import type { Session } from "@supabase/supabase-js";
 
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, displayName: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: user, isLoading } = useQuery<User | null>({
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setSessionLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const { data: user, isLoading: userLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!session,
   });
 
+  const isLoading = sessionLoading || (!!session && userLoading);
+
   const loginMutation = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
-      await apiRequest("POST", "/api/auth/login", { username, password });
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -29,8 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async ({ username, password, displayName }: { username: string; password: string; displayName: string }) => {
-      await apiRequest("POST", "/api/auth/register", { username, password, displayName });
+    mutationFn: async ({ email, password, displayName }: { email: string; password: string; displayName: string }) => {
+      await apiRequest("POST", "/api/auth/register", { email, password, displayName });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -39,19 +63,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/auth/logout");
+      await supabase.auth.signOut();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
   });
 
-  const login = useCallback(async (username: string, password: string) => {
-    await loginMutation.mutateAsync({ username, password });
+  const login = useCallback(async (email: string, password: string) => {
+    await loginMutation.mutateAsync({ email, password });
   }, [loginMutation]);
 
-  const register = useCallback(async (username: string, password: string, displayName: string) => {
-    await registerMutation.mutateAsync({ username, password, displayName });
+  const register = useCallback(async (email: string, password: string, displayName: string) => {
+    await registerMutation.mutateAsync({ email, password, displayName });
   }, [registerMutation]);
 
   const logout = useCallback(async () => {
@@ -59,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [logoutMutation]);
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user: session ? (user ?? null) : null, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -11,22 +11,27 @@ import { Loader2 } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
-import TopicsPage from "@/pages/topics";
+import ClassesPage from "@/pages/topics";
 import LearnPage from "@/pages/learn";
 import PracticePage from "@/pages/practice";
 import ProgressPage from "@/pages/progress";
 import AdminPage from "@/pages/admin";
+import CheatSheetPage from "@/pages/cheat-sheet";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/topics" component={TopicsPage} />
+      <Route path="/classes" component={ClassesPage} />
+      <Route path="/classes/:courseId" component={ClassesPage} />
       <Route path="/learn" component={LearnPage} />
-      <Route path="/learn/:topicId" component={LearnPage} />
+      <Route path="/learn/:courseId" component={LearnPage} />
+      <Route path="/learn/:courseId/:topicId" component={LearnPage} />
       <Route path="/practice" component={PracticePage} />
-      <Route path="/practice/:topicId" component={PracticePage} />
+      <Route path="/practice/:courseId" component={PracticePage} />
+      <Route path="/practice/:courseId/:topicId" component={PracticePage} />
       <Route path="/progress" component={ProgressPage} />
+      <Route path="/cheat-sheet" component={CheatSheetPage} />
       <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>

@@ -1,239 +1,662 @@
+import { eq, isNull } from "drizzle-orm";
+import { db } from "./db";
+import { topics, courses } from "@shared/schema";
 import { storage } from "./storage";
 
-export async function seedDatabase() {
-  const topicCount = await storage.getTopicCount();
-  if (topicCount > 0) return;
+async function migrateCourses() {
+  const existingCourses = await storage.getCourses();
+  if (existingCourses.length > 0) return;
 
-  console.log("Seeding database with initial data...");
+  const existingTopics = await storage.getTopics();
+  if (existingTopics.length === 0) return;
 
-  const calculusTopic = await storage.createTopic({
-    name: "Calculus I",
-    description: "Limits, derivatives, and integrals for single-variable functions",
-    icon: "f(x)",
+  console.log("Migrating: creating default course and assigning existing topics...");
+  const course = await storage.createCourse({
+    name: "Calculus II Part 1",
+    description: "Vectors, integration fundamentals, techniques, and approximation methods",
+    icon: "📐",
     orderIndex: 0,
   });
 
-  const physicsTopic = await storage.createTopic({
-    name: "Physics - Mechanics",
-    description: "Newton's laws, kinematics, energy, and momentum",
-    icon: "F=ma",
+  await db.update(topics).set({ courseId: course.id }).where(isNull(topics.courseId));
+  console.log("Migration complete: assigned all topics to Calculus II Part 1");
+}
+
+export async function seedDatabase() {
+  await migrateCourses();
+
+  const topicCount = await storage.getTopicCount();
+  if (topicCount > 0) return;
+
+  console.log("Seeding database with Calc 2 Part 1 content...");
+
+  // ─── Create Course ─────────────────────────────────────────────────
+
+  const calc2part1 = await storage.createCourse({
+    name: "Calculus II Part 1",
+    description: "Vectors, integration fundamentals, techniques, and approximation methods",
+    icon: "📐",
+    orderIndex: 0,
+  });
+
+  // ─── Section 1: Vectors ───────────────────────────────────────────
+
+  const vectors = await storage.createTopic({
+    courseId: calc2part1.id,
+    name: "Vectors",
+    description: "Building vectors, dot products, cross products, projections, and vector planes",
+    icon: "→",
+    orderIndex: 0,
+  });
+
+  await storage.createLearnCard({
+    topicId: vectors.id,
+    title: "Skill 1: Build a Vector From 2 Points",
+    content: `Given points $P$ and $Q$, the vector $\\vec{PQ}$ is found by subtracting the coordinates of $P$ from $Q$:
+
+$$\\vec{PQ} = Q - P$$
+
+**Example:** Given $P(1, -1, 2)$, $Q(4, 2, 0)$, $R(1, 3, 2)$
+
+$$\\vec{PQ} = (4, 2, 0) - (1, -1, 2) = (4-1,\\; 2-(-1),\\; 0-2) = (3, 3, -2)$$
+
+Similarly:
+$$\\vec{PR} = (1, 3, 2) - (1, -1, 2) = (0, 4, 0)$$`,
+    formula: "$$\\vec{PQ} = Q - P$$",
+    quickCheck: "Find PQ if P = (2, 1) and Q = (5, 4)",
+    quickCheckAnswer: "(3, 3)",
+    orderIndex: 0,
+  });
+
+  await storage.createLearnCard({
+    topicId: vectors.id,
+    title: "Skill 2: Find The Angle Between 2 Vectors Using The Dot Product",
+    content: `The dot product relates two vectors to the angle between them:
+
+$$\\vec{A} \\cdot \\vec{B} = |A||B|\\cos\\theta$$
+
+Solving for the angle:
+
+$$\\theta = \\cos^{-1}\\left(\\frac{\\vec{A} \\cdot \\vec{B}}{|A||B|}\\right)$$
+
+**Example:** If the points form a triangle, find the angle at $P$:
+- $\\vec{PQ} = (3, 3, -2)$
+- $\\vec{PR} = (0, 4, 0)$
+
+$$\\vec{PQ} \\cdot \\vec{PR} = 3(0) + 3(4) + (-2)(0) = 12$$
+$$|PQ| = \\sqrt{9 + 9 + 4} = \\sqrt{22}, \\quad |PR| = \\sqrt{0 + 16 + 0} = 4$$
+$$\\theta = \\cos^{-1}\\left(\\frac{12}{4\\sqrt{22}}\\right)$$`,
+    formula: "$$\\vec{A} \\cdot \\vec{B} = |A||B|\\cos\\theta$$",
+    quickCheck: "Find the dot product of (1, 2, 3) and (4, 5, 6)",
+    quickCheckAnswer: "32",
     orderIndex: 1,
   });
 
-  const linearAlgTopic = await storage.createTopic({
-    name: "Linear Algebra",
-    description: "Vectors, matrices, determinants, and linear transformations",
-    icon: "[M]",
+  await storage.createLearnCard({
+    topicId: vectors.id,
+    title: "Skill 3: Find The Area In a Triangle Using The Cross Product",
+    content: `The area of a triangle formed by vectors $\\vec{PQ}$ and $\\vec{PR}$ is:
+
+$$\\text{Area} = \\frac{1}{2}|\\vec{PQ} \\times \\vec{PR}|$$
+
+**Computing the cross product** using the determinant:
+
+$$\\vec{PQ} \\times \\vec{PR} = \\begin{vmatrix} \\hat{i} & \\hat{j} & \\hat{k} \\\\ PQ_x & PQ_y & PQ_z \\\\ PR_x & PR_y & PR_z \\end{vmatrix}$$
+
+**Example:** $\\vec{PQ} = (3, 3, -2)$, $\\vec{PR} = (0, 4, 0)$
+
+$$\\vec{PQ} \\times \\vec{PR} = \\hat{i}(3 \\cdot 0 - (-2) \\cdot 4) - \\hat{j}(3 \\cdot 0 - (-2) \\cdot 0) + \\hat{k}(3 \\cdot 4 - 3 \\cdot 0)$$
+$$= (8, 0, 12)$$
+
+$$|\\vec{PQ} \\times \\vec{PR}| = \\sqrt{64 + 0 + 144} = \\sqrt{208} = 4\\sqrt{13}$$
+
+$$\\text{Area} = \\frac{1}{2}(4\\sqrt{13}) = 2\\sqrt{13}$$`,
+    formula: "$$\\text{Area} = \\frac{1}{2}|\\vec{PQ} \\times \\vec{PR}|$$",
+    quickCheck: "What is the magnitude of (8, 0, 12)?",
+    quickCheckAnswer: "4sqrt(13)",
     orderIndex: 2,
   });
 
-  const chemTopic = await storage.createTopic({
-    name: "Chemistry",
-    description: "Atomic structure, bonding, stoichiometry, and thermochemistry",
-    icon: "H2O",
+  await storage.createLearnCard({
+    topicId: vectors.id,
+    title: "Skill 4: Projections",
+    content: `**Vector Projection** of $\\vec{u}$ onto $\\vec{v}$:
+
+$$\\text{proj}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||^2}\\vec{v}$$
+
+**Scalar Projection** (component):
+
+$$\\text{comp}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||}$$
+
+**Example:** Find the projection of $\\vec{PQ}$ onto $\\vec{PR}$
+
+$\\vec{PQ} = (3, 3, -2)$, $\\vec{PR} = (0, 4, 0)$
+
+**Step 1:** $\\vec{PQ} \\cdot \\vec{PR} = 12$, $|\\vec{PR}|^2 = 16$
+
+**Step 2:** $\\text{proj}_{\\vec{PR}}\\vec{PQ} = \\frac{12}{16}(0, 4, 0) = \\frac{3}{4}(0, 4, 0) = (0, 3, 0)$
+
+**Scalar projection:** $\\text{comp}_{\\vec{PR}}\\vec{PQ} = \\frac{12}{4} = 3$`,
+    formula: "$$\\text{proj}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||^2}\\vec{v}$$",
+    quickCheck: "What is PQ dot PR if PQ = (3,3,-2) and PR = (0,4,0)?",
+    quickCheckAnswer: "12",
     orderIndex: 3,
   });
 
-  const progTopic = await storage.createTopic({
-    name: "Programming Fundamentals",
-    description: "Variables, loops, functions, and basic data structures",
-    icon: "</>",
+  await storage.createLearnCard({
+    topicId: vectors.id,
+    title: "Skill 5: Vector Planes",
+    content: `The equation of a plane through point $P_0(x_0, y_0, z_0)$ with normal vector $\\vec{n} = (a, b, c)$:
+
+$$a(x - x_0) + b(y - y_0) + c(z - z_0) = 0$$
+
+Or in standard form:
+
+$$ax + by + cz = d$$
+
+where $d = ax_0 + by_0 + cz_0$.
+
+**Finding the normal vector:** The cross product of two vectors in the plane gives the normal:
+
+$$\\vec{n} = \\vec{PQ} \\times \\vec{PR}$$
+
+**Example:** Find the equation of the plane through $P(1, -1, 2)$ with $\\vec{PQ} = (3, 3, -2)$ and $\\vec{PR} = (0, 4, 0)$
+
+$\\vec{n} = \\vec{PQ} \\times \\vec{PR} = (8, 0, 12)$
+
+$$8(x - 1) + 0(y + 1) + 12(z - 2) = 0$$
+$$8x + 12z = 32$$
+$$2x + 3z = 8$$
+
+**Distance from a point to a plane** $ax + by + cz = d$:
+
+$$D = \\frac{|ax_1 + by_1 + cz_1 - d|}{\\sqrt{a^2 + b^2 + c^2}}$$`,
+    formula: "$$a(x - x_0) + b(y - y_0) + c(z - z_0) = 0$$",
+    quickCheck: "If n = (2, 3, 1) and P0 = (1, 0, 2), what is d in ax+by+cz=d?",
+    quickCheckAnswer: "4",
     orderIndex: 4,
   });
 
-  await storage.createLearnCard({ topicId: calculusTopic.id, title: "What is a Limit?", content: `A limit describes the value a function approaches as the input approaches some value. Formally:
+  // Vector question templates
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the dot product of $({a1}, {a2})$ and $({b1}, {b2})$.",
+    solutionTemplate: "$\\vec{a} \\cdot \\vec{b} = {a1} \\cdot {b1} + {a2} \\cdot {b2} = {p1} + {p2} = {answer}$",
+    answerType: "numeric",
+    parameters: { a1: { min: 1, max: 8 }, a2: { min: 1, max: 8 }, b1: { min: 1, max: 8 }, b2: { min: 1, max: 8 } },
+  });
 
-$$\\lim_{x \\to a} f(x) = L$$
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the magnitude of vector $({a}, {b})$.",
+    solutionTemplate: "$|\\vec{v}| = \\sqrt{{a}^2 + {b}^2} = \\sqrt{{a2} + {b2}} = {answer}$",
+    answerType: "numeric",
+    parameters: { a: { min: 1, max: 12 }, b: { min: 1, max: 12 } },
+  });
 
-means that $f(x)$ gets arbitrarily close to $L$ as $x$ gets close to $a$.
+  // ─── Section 2: Integration Fundamentals ──────────────────────────
 
-**Key insight:** The limit may exist even if $f(a)$ is undefined. For example:
+  const intFundamentals = await storage.createTopic({
+    courseId: calc2part1.id,
+    name: "Integration Fundamentals",
+    description: "Riemann sums, Fundamental Theorem of Calculus, and graphical connections",
+    icon: "∫",
+    orderIndex: 1,
+  });
 
-$$\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1$$
+  await storage.createLearnCard({
+    topicId: intFundamentals.id,
+    title: "Skill 1: Using The Riemann Sum Formula",
+    content: `A Riemann sum approximates $\\int_a^b f(x) \\, dx$ by dividing $[a,b]$ into $n$ subintervals of width $\\Delta x = \\frac{b-a}{n}$.
 
-even though $\\frac{\\sin(0)}{0}$ is undefined.`, quickCheck: "What is lim (x -> 0) sin(x)/x?", quickCheckAnswer: "1", orderIndex: 0 });
+$$\\int_a^b f(x) \\, dx \\approx \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$
 
-  await storage.createLearnCard({ topicId: calculusTopic.id, title: "Derivative Definition", content: `The derivative of $f$ at point $a$ is defined as:
+**Left Riemann Sum:** $x_i^* = x_{i-1}$ (left endpoints)
+$$L_n = \\sum_{i=0}^{n-1} f(x_i) \\Delta x$$
 
-$$f'(a) = \\lim_{h \\to 0} \\frac{f(a+h) - f(a)}{h}$$
+**Right Riemann Sum:** $x_i^* = x_i$ (right endpoints)
+$$R_n = \\sum_{i=1}^{n} f(x_i) \\Delta x$$
 
-This represents the **instantaneous rate of change** of $f$ at $a$, or equivalently, the slope of the tangent line to the graph at $x = a$.
+where $x_i = a + i \\cdot \\Delta x$.
 
-### Common Derivatives
+**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$ (Left):
 
-| Function | Derivative |
-|---|---|
-| $x^n$ | $nx^{n-1}$ (Power Rule) |
-| $\\sin(x)$ | $\\cos(x)$ |
-| $\\cos(x)$ | $-\\sin(x)$ |
-| $e^x$ | $e^x$ |
-| $\\ln(x)$ | $\\frac{1}{x}$ |`, quickCheck: "What is the derivative of x^3?", quickCheckAnswer: "3x^2", orderIndex: 1 });
+$\\Delta x = 0.5$, sample points: $0, 0.5, 1, 1.5$
 
-  await storage.createLearnCard({ topicId: calculusTopic.id, title: "Chain Rule", content: `The chain rule is used to differentiate **composite functions**:
+$$L_4 = 0.5[f(0) + f(0.5) + f(1) + f(1.5)] = 0.5[0 + 0.25 + 1 + 2.25] = 1.75$$
 
-If $y = f(g(x))$, then:
+**As $n \\to \\infty$, the Riemann sum becomes the exact integral:**
+$$\\int_a^b f(x) \\, dx = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$`,
+    formula: "$$\\int_a^b f(x) \\, dx = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$",
+    quickCheck: "What is delta x for [0, 4] with n = 4?",
+    quickCheckAnswer: "1",
+    orderIndex: 0,
+  });
 
-$$\\frac{dy}{dx} = f'(g(x)) \\cdot g'(x)$$
+  await storage.createLearnCard({
+    topicId: intFundamentals.id,
+    title: "Skill 2: Apply Part 1 of Fundamental Theorem of Calculus",
+    content: `**FTC Part 1** connects integrals and derivatives:
 
-> Think of it as: "derivative of the outside times derivative of the inside."
+If $F(x) = \\int_a^x f(t) \\, dt$, then:
 
-**Example:**
+$$F'(x) = f(x)$$
 
-$$\\frac{d}{dx}[\\sin(x^2)] = \\cos(x^2) \\cdot 2x$$`, quickCheck: "What is d/dx [e^(3x)]?", quickCheckAnswer: "3e^(3x)", orderIndex: 2 });
+In other words, the derivative of an integral (with variable upper limit) gives back the original function.
 
-  await storage.createLearnCard({ topicId: calculusTopic.id, title: "Definite Integrals", content: `The definite integral represents the **net signed area** between $f(x)$ and the x-axis:
+**With chain rule:** If the upper limit is $g(x)$ instead of just $x$:
 
-$$\\int_a^b f(x)\\,dx$$
+$$\\frac{d}{dx}\\int_a^{g(x)} f(t) \\, dt = f(g(x)) \\cdot g'(x)$$
 
-### Fundamental Theorem of Calculus
+**Example 1:** $\\frac{d}{dx}\\int_1^x t^3 \\, dt = x^3$
 
-If $F'(x) = f(x)$, then:
+**Example 2:** $\\frac{d}{dx}\\int_0^{x^2} \\sin(t) \\, dt = \\sin(x^2) \\cdot 2x$
 
-$$\\int_a^b f(x)\\,dx = F(b) - F(a)$$
+**Example 3:** $\\frac{d}{dx}\\int_x^5 e^t \\, dt = -\\frac{d}{dx}\\int_5^x e^t \\, dt = -e^x$
 
-### Basic Integration Rules
+> Note: If $x$ is in the lower limit, flip the integral and negate.`,
+    formula: "$$\\frac{d}{dx}\\int_a^x f(t) \\, dt = f(x)$$",
+    quickCheck: "What is d/dx of integral from 1 to x of t^2 dt?",
+    quickCheckAnswer: "x^2",
+    orderIndex: 1,
+  });
 
-| Function | Integral |
-|---|---|
-| $x^n$ | $\\frac{x^{n+1}}{n+1} + C$ |
-| $e^x$ | $e^x + C$ |
-| $\\frac{1}{x}$ | $\\ln|x| + C$ |`, quickCheck: "What is the integral of 2x dx?", quickCheckAnswer: "x^2 + C", orderIndex: 3 });
+  await storage.createLearnCard({
+    topicId: intFundamentals.id,
+    title: "Skill 3: Apply Part 2 of Fundamental Theorem of Calculus",
+    content: `**FTC Part 2** (Evaluation Theorem):
 
-  await storage.createLearnCard({ topicId: physicsTopic.id, title: "Newton's First Law", content: `An object at rest stays at rest, and an object in motion stays in motion with the same speed and direction, **unless acted upon by an unbalanced force**.
+If $F'(x) = f(x)$ (i.e., $F$ is an antiderivative of $f$), then:
 
-This is also called the **Law of Inertia**. Inertia is the tendency of an object to resist changes in its state of motion.
+$$\\int_a^b f(x) \\, dx = F(b) - F(a)$$
 
-> If the net force on an object is zero, its velocity does not change: $\\sum \\vec{F} = 0 \\implies \\vec{v} = \\text{constant}$`, quickCheck: "What happens to a moving object if no net force acts on it?", quickCheckAnswer: "It continues moving at constant velocity", orderIndex: 0 });
+**Steps:**
+1. Find the antiderivative $F(x)$
+2. Evaluate $F$ at the upper limit $b$
+3. Evaluate $F$ at the lower limit $a$
+4. Subtract: $F(b) - F(a)$
 
-  await storage.createLearnCard({ topicId: physicsTopic.id, title: "Newton's Second Law", content: `The acceleration of an object is directly proportional to the net force and inversely proportional to its mass:
+**Example 1:** $\\int_1^3 2x \\, dx$
 
-$$\\vec{F} = m\\vec{a}$$
+$F(x) = x^2$, so $F(3) - F(1) = 9 - 1 = 8$
 
-where:
-- $F$ is force (Newtons, N)
-- $m$ is mass (kg)
-- $a$ is acceleration ($\\text{m/s}^2$)
+**Example 2:** $\\int_0^{\\pi} \\sin(x) \\, dx$
 
-This is the **most important equation** in classical mechanics. It tells us how forces cause changes in motion.`, quickCheck: "If F = 10N and m = 2kg, what is a?", quickCheckAnswer: "5", orderIndex: 1 });
+$F(x) = -\\cos(x)$, so $-\\cos(\\pi) - (-\\cos(0)) = 1 + 1 = 2$
 
-  await storage.createLearnCard({ topicId: physicsTopic.id, title: "Kinematics Equations", content: `The four kinematic equations for **constant acceleration**:
+**Example 3:** $\\int_1^e \\frac{1}{x} \\, dx$
 
-1. $v = v_0 + at$
-2. $x = x_0 + v_0 t + \\frac{1}{2}at^2$
-3. $v^2 = v_0^2 + 2a(x - x_0)$
-4. $x = x_0 + \\frac{v + v_0}{2} \\cdot t$
+$F(x) = \\ln(x)$, so $\\ln(e) - \\ln(1) = 1 - 0 = 1$`,
+    formula: "$$\\int_a^b f(x) \\, dx = F(b) - F(a)$$",
+    quickCheck: "Evaluate the integral of 3x^2 from 0 to 2",
+    quickCheckAnswer: "8",
+    orderIndex: 2,
+  });
 
-where:
-- $v_0$ = initial velocity
-- $v$ = final velocity
-- $a$ = acceleration
-- $t$ = time
-- $x_0$, $x$ = initial and final position`, quickCheck: "If v0 = 0, a = 10 m/s^2, and t = 3s, what is v?", quickCheckAnswer: "30", orderIndex: 2 });
+  await storage.createLearnCard({
+    topicId: intFundamentals.id,
+    title: "Skill 4: Relate Derivatives To Integrals Graphically",
+    content: `The derivative and integral have a visual relationship on graphs:
 
-  await storage.createLearnCard({ topicId: linearAlgTopic.id, title: "Vectors", content: `A vector is a quantity with both **magnitude and direction**. In 2D:
+**Key Relationships:**
 
-$$\\vec{v} = (v_1, v_2) = v_1\\hat{i} + v_2\\hat{j}$$
+1. **If $f(x)$ is positive** on $[a,b]$, then $\\int_a^b f(x) \\, dx > 0$ (area above x-axis)
+2. **If $f(x)$ is negative** on $[a,b]$, then $\\int_a^b f(x) \\, dx < 0$ (area below x-axis)
+3. **If $F(x) = \\int_a^x f(t) \\, dt$**, then:
+   - $F$ is increasing where $f > 0$
+   - $F$ is decreasing where $f < 0$
+   - $F$ has a local max/min where $f$ changes sign
 
-### Vector Operations
+**Reading the graph of $f$ to sketch $F$:**
+- Where $f(x) = 0$, $F$ has a horizontal tangent
+- Where $f(x)$ is largest, $F$ is increasing fastest
+- The signed area under $f$ from $a$ to $x$ gives $F(x) - F(a)$
 
-| Operation | Formula |
-|---|---|
-| Addition | $(a_1, a_2) + (b_1, b_2) = (a_1+b_1, a_2+b_2)$ |
-| Scalar mult. | $c \\cdot (a_1, a_2) = (ca_1, ca_2)$ |
-| Magnitude | $|\\vec{v}| = \\sqrt{v_1^2 + v_2^2}$ |
-| Dot product | $\\vec{a} \\cdot \\vec{b} = a_1 b_1 + a_2 b_2$ |`, quickCheck: "What is the magnitude of vector (3, 4)?", quickCheckAnswer: "5", orderIndex: 0 });
+**Example:** If $f(x) > 0$ on $(0, 3)$ and $f(x) < 0$ on $(3, 5)$, then $F(x) = \\int_0^x f(t) \\, dt$ increases on $(0,3)$, has a max at $x=3$, and decreases on $(3,5)$.`,
+    formula: "$$F'(x) = f(x) \\implies F \\text{ increases where } f > 0$$",
+    quickCheck: "If f(x) > 0 on [1,4], is the integral from 1 to 4 positive or negative?",
+    quickCheckAnswer: "positive",
+    orderIndex: 3,
+  });
 
-  await storage.createLearnCard({ topicId: linearAlgTopic.id, title: "Matrix Multiplication", content: `To multiply matrices $A$ ($m \\times n$) and $B$ ($n \\times p$), the element in row $i$, column $j$ of $AB$ is:
+  // Integration Fundamentals question templates
+  await storage.createQuestionTemplate({
+    topicId: intFundamentals.id,
+    templateText: "Evaluate the definite integral: $\\int_0^{b} {a}x \\, dx$",
+    solutionTemplate: "$\\int {a}x \\, dx = \\frac{{a}x^2}{2}$\n\nEvaluate from $0$ to ${b}$: $\\frac{{a} \\cdot {b}^2}{2} - 0 = {answer}$",
+    answerType: "numeric",
+    parameters: { a: { min: 1, max: 6 }, b: { min: 1, max: 5 } },
+  });
 
-$$(AB)_{ij} = \\sum_{k=1}^{n} A_{ik} \\cdot B_{kj}$$
+  await storage.createQuestionTemplate({
+    topicId: intFundamentals.id,
+    templateText: "Evaluate: $\\int_1^{b} {a}x^2 \\, dx$",
+    solutionTemplate: "$\\int {a}x^2 \\, dx = \\frac{{a}x^3}{3}$\n\nEvaluate: $\\frac{{a} \\cdot {b}^3}{3} - \\frac{{a}}{3} = {answer}$",
+    answerType: "numeric",
+    parameters: { a: { min: 1, max: 4 }, b: { min: 2, max: 4 } },
+  });
 
-> **Important:** $AB \\neq BA$ in general. Matrix multiplication is **not commutative!**
+  // ─── Section 3: Integration Techniques ────────────────────────────
 
-The resulting matrix $AB$ has dimensions $m \\times p$.`, quickCheck: "If A is 2x3 and B is 3x4, what size is AB?", quickCheckAnswer: "2x4", orderIndex: 1 });
+  const intTechniques = await storage.createTopic({
+    courseId: calc2part1.id,
+    name: "Integration Techniques",
+    description: "u-substitution, integration by parts, trig integration, and partial fractions",
+    icon: "∮",
+    orderIndex: 2,
+  });
 
-  await storage.createLearnCard({ topicId: chemTopic.id, title: "Atomic Structure", content: `Atoms consist of:
-- **Protons** (positive charge) in the nucleus
-- **Neutrons** (no charge) in the nucleus
-- **Electrons** (negative charge) orbiting the nucleus
+  await storage.createLearnCard({
+    topicId: intTechniques.id,
+    title: "Skill 1: u Substitution",
+    content: `U-substitution reverses the chain rule. Set $u = g(x)$, then $du = g'(x) \\, dx$:
 
-### Key Numbers
-- **Atomic number** ($Z$) = number of protons
-- **Mass number** ($A$) = protons + neutrons: $A = Z + N$
+$$\\int f(g(x)) \\cdot g'(x) \\, dx = \\int f(u) \\, du$$
 
-### Electron Configuration Rules
-1. **Aufbau principle** - fill lowest energy first
-2. **Pauli exclusion** - max 2 electrons per orbital
-3. **Hund's rule** - fill orbitals singly first`, quickCheck: "How many protons does Carbon (Z=6) have?", quickCheckAnswer: "6", orderIndex: 0 });
+**Steps:**
+1. Choose $u$ (usually the "inner" function)
+2. Find $du = g'(x) \\, dx$
+3. Substitute $u$ and $du$ into the integral
+4. Integrate in terms of $u$
+5. Back-substitute to $x$
 
-  await storage.createLearnCard({ topicId: chemTopic.id, title: "Stoichiometry", content: `Stoichiometry relates quantities in chemical reactions using balanced equations.
+**Example 1:** $\\int 2x \\cos(x^2) \\, dx$
 
-### Key Concepts
-- **Molar mass**: mass of one mole of a substance (g/mol)
-- **Avogadro's number**: $6.022 \\times 10^{23}$ particles/mol
-- **Mole ratios**: from balanced equation coefficients
+Let $u = x^2$, $du = 2x \\, dx$:
+$$\\int \\cos(u) \\, du = \\sin(u) + C = \\sin(x^2) + C$$
 
-### Problem-Solving Steps
-1. Write and balance the equation
-2. Convert given quantity to moles: $n = \\frac{m}{M}$
-3. Use mole ratio to find moles of desired substance
-4. Convert moles to desired units`, quickCheck: "How many particles are in 1 mole?", quickCheckAnswer: "6.022 x 10^23", orderIndex: 1 });
+**Example 2:** $\\int \\frac{3x^2}{x^3 + 1} \\, dx$
 
-  await storage.createLearnCard({ topicId: progTopic.id, title: "Variables and Types", content: `Variables store data in a program. Common data types:
+Let $u = x^3 + 1$, $du = 3x^2 \\, dx$:
+$$\\int \\frac{du}{u} = \\ln|u| + C = \\ln|x^3 + 1| + C$$
 
-| Type | Description | Example |
+**For definite integrals:** Change the limits when you substitute!
+$$\\int_a^b f(g(x))g'(x) \\, dx = \\int_{g(a)}^{g(b)} f(u) \\, du$$`,
+    formula: "$$\\int f(g(x)) \\cdot g'(x) \\, dx = \\int f(u) \\, du$$",
+    quickCheck: "If u = x^2 + 1, what is du?",
+    quickCheckAnswer: "2x dx",
+    orderIndex: 0,
+  });
+
+  await storage.createLearnCard({
+    topicId: intTechniques.id,
+    title: "Skill 2: Integration by Parts",
+    content: `Integration by parts comes from the product rule in reverse:
+
+$$\\int u \\, dv = uv - \\int v \\, du$$
+
+**LIATE Rule** for choosing $u$ (in order of priority):
+- **L**ogarithmic: $\\ln(x)$
+- **I**nverse trig: $\\arctan(x)$
+- **A**lgebraic: $x^2, x$
+- **T**rig: $\\sin(x), \\cos(x)$
+- **E**xponential: $e^x$
+
+**Example 1:** $\\int x e^x \\, dx$
+
+Let $u = x$, $dv = e^x \\, dx$, then $du = dx$, $v = e^x$:
+$$xe^x - \\int e^x \\, dx = xe^x - e^x + C$$
+
+**Example 2:** $\\int x^2 \\sin(x) \\, dx$
+
+Requires applying integration by parts **twice**. After first application with $u = x^2$, $dv = \\sin(x)dx$, you get another integral that needs IBP again.
+
+**Tabular method** is useful for repeated applications.`,
+    formula: "$$\\int u \\, dv = uv - \\int v \\, du$$",
+    quickCheck: "In integration by parts for integral of x*cos(x) dx, what should u be?",
+    quickCheckAnswer: "x",
+    orderIndex: 1,
+  });
+
+  await storage.createLearnCard({
+    topicId: intTechniques.id,
+    title: "Skill 3: Trig Integration (Trig Substitution)",
+    content: `## Inverse-Trig (Trig Sub) — The Plug-and-Play Process
+
+### Step 1 — Choose the correct trig substitution (match the radical)
+
+| If you see | Set | Identity used |
 |---|---|---|
-| \`int\` | whole numbers | \`42\`, \`-7\` |
-| \`float\`/\`double\` | decimal numbers | \`3.14\` |
-| \`string\` | text | \`"hello"\` |
-| \`boolean\` | true/false | \`true\` |
+| $\\sqrt{a^2 - x^2}$ | $x = a\\sin\\theta$ | $1 - \\sin^2\\theta = \\cos^2\\theta$ |
+| $\\sqrt{a^2 + x^2}$ | $x = a\\tan\\theta$ | $1 + \\tan^2\\theta = \\sec^2\\theta$ |
+| $\\sqrt{x^2 - a^2}$ | $x = a\\sec\\theta$ | $\\sec^2\\theta - 1 = \\tan^2\\theta$ |
 
-### Variable Declaration
+### Step 2 — Convert to a trig equation ($\\theta$ in terms of $x$)
 
-\`\`\`
-int age = 21;
-string name = "Alice";
-bool isStudent = true;
-\`\`\`
+From your substitution, isolate the trig function:
+- If $x = a\\sin\\theta$ then $\\sin\\theta = \\frac{x}{a}$
+- If $x = a\\tan\\theta$ then $\\tan\\theta = \\frac{x}{a}$
+- If $x = a\\sec\\theta$ then $\\sec\\theta = \\frac{x}{a}$
 
-Variables should have **descriptive names** that indicate their purpose.`, quickCheck: "What data type would you use for 3.14?", quickCheckAnswer: "float", orderIndex: 0 });
+### Step 3 — Differentiate to get $dx$
 
-  await storage.createLearnCard({ topicId: progTopic.id, title: "Loops", content: `Loops repeat code blocks:
+| Substitution | $\\frac{dx}{d\\theta}$ | $dx$ |
+|---|---|---|
+| $x = a\\sin\\theta$ | $a\\cos\\theta$ | $dx = a\\cos\\theta \\, d\\theta$ |
+| $x = a\\tan\\theta$ | $a\\sec^2\\theta$ | $dx = a\\sec^2\\theta \\, d\\theta$ |
+| $x = a\\sec\\theta$ | $a\\sec\\theta\\tan\\theta$ | $dx = a\\sec\\theta\\tan\\theta \\, d\\theta$ |
 
-### For Loop
-When you know how many times to repeat:
-\`\`\`
-for (int i = 0; i < 10; i++) {
-    // runs 10 times
-}
-\`\`\`
+### Step 4 — Write $\\theta$ explicitly (inverse trig)
 
-### While Loop
-Repeat until a condition is false:
-\`\`\`
-while (condition) {
-    // runs until condition is false
-}
-\`\`\`
+- $\\sin\\theta = \\frac{x}{a} \\implies \\theta = \\arcsin\\left(\\frac{x}{a}\\right)$
+- $\\tan\\theta = \\frac{x}{a} \\implies \\theta = \\arctan\\left(\\frac{x}{a}\\right)$
+- $\\sec\\theta = \\frac{x}{a} \\implies \\theta = \\text{arcsec}\\left(\\frac{x}{a}\\right)$
 
-### Common Patterns
-- Counting from $0$ to $n-1$
-- Processing each element in a collection
-- Repeating until user input is valid`, quickCheck: "How many times does 'for(i=0; i<5; i++)' execute?", quickCheckAnswer: "5", orderIndex: 1 });
+### Step 5 — Substitute $x$, $dx$, and the radical into the integral
 
-  await storage.createQuestionTemplate({ topicId: calculusTopic.id, templateText: "Find the derivative of $f(x) = {a}x^{n}$.", solutionTemplate: "Using the power rule: $\\frac{d}{dx}[{a}x^{n}] = {a} \\cdot {n} \\cdot x^{n-1} = {answer}x^{nm1}$", answerType: "text", parameters: { a: { min: 2, max: 10 }, n: { min: 2, max: 5 } } });
-  await storage.createQuestionTemplate({ topicId: calculusTopic.id, templateText: "Evaluate the definite integral: $\\int_0^{b} {a}x \\, dx$", solutionTemplate: "$\\int {a}x \\, dx = \\frac{{a}x^2}{2}$\n\nEvaluate from $0$ to ${b}$: $\\frac{{a} \\cdot {b}^2}{2} - 0 = {answer}$", answerType: "numeric", parameters: { a: { min: 1, max: 6 }, b: { min: 1, max: 5 } } });
-  await storage.createQuestionTemplate({ topicId: calculusTopic.id, templateText: "Find the limit: $\\lim_{x \\to {a}} ({a2}x + {b})$", solutionTemplate: "Since this is a polynomial (continuous everywhere), we can directly substitute:\n\n$\\lim_{x \\to {a}} ({a2}x + {b}) = {a2} \\cdot {a} + {b} = {answer}$", answerType: "numeric", parameters: { a: { min: 1, max: 5 }, a2: { min: 2, max: 8 }, b: { min: 1, max: 10 } } });
+Replace everything with trig expressions in $\\theta$.
 
-  await storage.createQuestionTemplate({ topicId: physicsTopic.id, templateText: "A ${m}$ kg object has a force of ${f}$ N applied to it. What is the acceleration?", solutionTemplate: "Using Newton's Second Law: $F = ma$\n\n$a = \\frac{F}{m} = \\frac{{f}}{{m}} = {answer}$ m/s$^2$", answerType: "numeric", parameters: { m: { min: 2, max: 20 }, f: { min: 10, max: 100 } } });
-  await storage.createQuestionTemplate({ topicId: physicsTopic.id, templateText: "An object starts from rest and accelerates at ${a}$ m/s$^2$ for ${t}$ seconds. What is its final velocity?", solutionTemplate: "Using $v = v_0 + at$\n\n$v_0 = 0$ (starts from rest)\n\n$v = 0 + {a} \\cdot {t} = {answer}$ m/s", answerType: "numeric", parameters: { a: { min: 2, max: 10 }, t: { min: 2, max: 10 } } });
+### Step 6 — Simplify using identities
 
-  await storage.createQuestionTemplate({ topicId: linearAlgTopic.id, templateText: "Find the magnitude of vector $({a}, {b})$.", solutionTemplate: "$|\\vec{v}| = \\sqrt{{a}^2 + {b}^2} = \\sqrt{{a2} + {b2}} = {answer}$", answerType: "numeric", parameters: { a: { min: 1, max: 12 }, b: { min: 1, max: 12 } } });
-  await storage.createQuestionTemplate({ topicId: linearAlgTopic.id, templateText: "Find the dot product of vectors $({a1}, {a2})$ and $({b1}, {b2})$.", solutionTemplate: "$\\vec{a} \\cdot \\vec{b} = {a1} \\cdot {b1} + {a2} \\cdot {b2} = {p1} + {p2} = {answer}$", answerType: "numeric", parameters: { a1: { min: 1, max: 8 }, a2: { min: 1, max: 8 }, b1: { min: 1, max: 8 }, b2: { min: 1, max: 8 } } });
+Common simplification for $\\sqrt{a^2 - x^2}$ with $x = a\\sin\\theta$:
 
-  await storage.createQuestionTemplate({ topicId: chemTopic.id, templateText: "An element has ${p}$ protons and ${n}$ neutrons. What is its mass number?", solutionTemplate: "Mass number: $A = Z + N = {p} + {n} = {answer}$", answerType: "numeric", parameters: { p: { min: 1, max: 30 }, n: { min: 1, max: 30 } } });
-  await storage.createQuestionTemplate({ topicId: chemTopic.id, templateText: "How many moles are in ${g}$ grams of a substance with molar mass ${mm}$ g/mol?", solutionTemplate: "$n = \\frac{m}{M} = \\frac{{g}}{{mm}} = {answer}$ mol", answerType: "numeric", parameters: { g: { min: 10, max: 100 }, mm: { min: 10, max: 60 } } });
+$$\\sqrt{a^2 - x^2} = \\sqrt{a^2 - a^2\\sin^2\\theta} = a\\sqrt{1 - \\sin^2\\theta} = a\\cos\\theta$$
 
-  await storage.createQuestionTemplate({ topicId: progTopic.id, templateText: "What is the output of: `for(int i = 0; i < {n}; i++) sum += {a};` if sum starts at 0?", solutionTemplate: "The loop runs ${n}$ times, each time adding ${a}$ to sum.\n\n$\\text{sum} = {n} \\times {a} = {answer}$", answerType: "numeric", parameters: { n: { min: 2, max: 10 }, a: { min: 1, max: 10 } } });
+Useful rewrite: $\\cot^2\\theta = \\csc^2\\theta - 1$
 
-  console.log("Database seeded successfully!");
+### Step 7 — Integrate in $\\theta$
+
+Do the trig integral.
+
+### Step 8 — Draw the triangle and convert back to $x$
+
+Use the trig equation from Step 2 to build a right triangle:
+
+| If | opp | adj | hyp |
+|---|---|---|---|
+| $\\sin\\theta = \\frac{x}{a}$ | $x$ | $\\sqrt{a^2 - x^2}$ | $a$ |
+| $\\tan\\theta = \\frac{x}{a}$ | $x$ | $a$ | $\\sqrt{a^2 + x^2}$ |
+| $\\sec\\theta = \\frac{x}{a}$ | $\\sqrt{x^2 - a^2}$ | $a$ | $x$ |
+
+### Step 9 — Substitute back to $x$ (final answer)
+
+---
+
+## Worked Example: $\\int \\frac{\\sqrt{9 - x^2}}{x^2} \\, dx$
+
+**Step 1:** Radical is $\\sqrt{9 - x^2}$ which matches $\\sqrt{a^2 - x^2}$ with $a = 3$. Set $x = 3\\sin\\theta$.
+
+**Step 2:** $\\sin\\theta = \\frac{x}{3}$
+
+**Step 3:** $dx = 3\\cos\\theta \\, d\\theta$
+
+**Step 4:** $\\theta = \\arcsin\\left(\\frac{x}{3}\\right)$
+
+**Step 5:** Simplify the radical:
+$$\\sqrt{9 - x^2} = \\sqrt{9 - 9\\sin^2\\theta} = 3\\cos\\theta$$
+
+Also $x^2 = 9\\sin^2\\theta$. Substitute:
+
+$$\\int \\frac{3\\cos\\theta}{9\\sin^2\\theta}(3\\cos\\theta \\, d\\theta)$$
+
+**Step 6:** Simplify:
+$$= \\int \\frac{9\\cos^2\\theta}{9\\sin^2\\theta} \\, d\\theta = \\int \\frac{\\cos^2\\theta}{\\sin^2\\theta} \\, d\\theta = \\int \\cot^2\\theta \\, d\\theta$$
+
+Use $\\cot^2\\theta = \\csc^2\\theta - 1$:
+$$= \\int (\\csc^2\\theta - 1) \\, d\\theta$$
+
+**Step 7:** Integrate:
+$$= -\\cot\\theta - \\theta + C$$
+
+**Step 8:** From $\\sin\\theta = \\frac{x}{3}$: opp $= x$, hyp $= 3$, adj $= \\sqrt{9 - x^2}$
+
+$$\\cot\\theta = \\frac{\\text{adj}}{\\text{opp}} = \\frac{\\sqrt{9 - x^2}}{x}$$
+
+**Step 9:** Final answer:
+$$\\int \\frac{\\sqrt{9 - x^2}}{x^2} \\, dx = -\\frac{\\sqrt{9 - x^2}}{x} - \\arcsin\\left(\\frac{x}{3}\\right) + C$$`,
+    formula: "$$\\sqrt{a^2 - x^2} \\to x = a\\sin\\theta, \\quad \\sqrt{a^2 + x^2} \\to x = a\\tan\\theta, \\quad \\sqrt{x^2 - a^2} \\to x = a\\sec\\theta$$",
+    quickCheck: "For sqrt(9 + x^2), what substitution do you use?",
+    quickCheckAnswer: "x = 3tan(theta)",
+    orderIndex: 2,
+  });
+
+  await storage.createLearnCard({
+    topicId: intTechniques.id,
+    title: "Skill 4: Partial Fractions",
+    content: `For rational functions $\\frac{P(x)}{Q(x)}$ where $\\deg(P) < \\deg(Q)$, decompose into simpler fractions:
+
+**Distinct linear factors:**
+$$\\frac{1}{(x-a)(x-b)} = \\frac{A}{x-a} + \\frac{B}{x-b}$$
+
+**Repeated linear factor:**
+$$\\frac{1}{(x-a)^2} = \\frac{A}{x-a} + \\frac{B}{(x-a)^2}$$
+
+**Irreducible quadratic factor:**
+$$\\frac{1}{(x-a)(x^2+1)} = \\frac{A}{x-a} + \\frac{Bx+C}{x^2+1}$$
+
+**Example:** $\\int \\frac{1}{x^2 - 1} \\, dx = \\int \\frac{1}{(x-1)(x+1)} \\, dx$
+
+$$\\frac{1}{(x-1)(x+1)} = \\frac{A}{x-1} + \\frac{B}{x+1}$$
+
+Multiply both sides by $(x-1)(x+1)$: $1 = A(x+1) + B(x-1)$
+
+Set $x = 1$: $1 = 2A \\implies A = \\frac{1}{2}$
+Set $x = -1$: $1 = -2B \\implies B = -\\frac{1}{2}$
+
+$$= \\frac{1}{2}\\ln|x-1| - \\frac{1}{2}\\ln|x+1| + C$$`,
+    formula: "$$\\frac{P(x)}{Q(x)} = \\frac{A}{x-a} + \\frac{B}{x-b} + \\cdots$$",
+    quickCheck: "Decompose 1/((x-1)(x+1)): what is A?",
+    quickCheckAnswer: "1/2",
+    orderIndex: 3,
+  });
+
+  // Integration Techniques question templates
+  await storage.createQuestionTemplate({
+    topicId: intTechniques.id,
+    templateText: "Using integration by parts, evaluate $\\int_0^1 {a}x e^x \\, dx$.",
+    solutionTemplate: "Let $u = {a}x$, $dv = e^x dx$, then $du = {a}dx$, $v = e^x$\n\n$= {a}xe^x - {a}e^x \\Big|_0^1 = ({a}e - {a}e) - (0 - {a}) = {answer}$",
+    answerType: "numeric",
+    parameters: { a: { min: 1, max: 5 } },
+  });
+
+  // ─── Section 4: Approximations ────────────────────────────────────
+
+  const approx = await storage.createTopic({
+    courseId: calc2part1.id,
+    name: "Approximations",
+    description: "Midpoint, Simpson's, and trapezoidal approximation methods",
+    icon: "≈",
+    orderIndex: 3,
+  });
+
+  await storage.createLearnCard({
+    topicId: approx.id,
+    title: "Skill 1: Midpoint Approximation",
+    content: `The midpoint rule uses the function value at the center of each subinterval:
+
+$$M_n = \\sum_{i=1}^{n} f(\\bar{x}_i) \\Delta x$$
+
+where $\\bar{x}_i = \\frac{x_{i-1} + x_i}{2}$ is the midpoint and $\\Delta x = \\frac{b-a}{n}$.
+
+**Steps:**
+1. Compute $\\Delta x = \\frac{b-a}{n}$
+2. Find the midpoints: $\\bar{x}_i = a + (i - \\frac{1}{2})\\Delta x$
+3. Evaluate $f$ at each midpoint
+4. Sum: $M_n = \\Delta x \\cdot [f(\\bar{x}_1) + f(\\bar{x}_2) + \\cdots + f(\\bar{x}_n)]$
+
+**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:
+
+$\\Delta x = 0.5$, midpoints: $0.25, 0.75, 1.25, 1.75$
+
+$$M_4 = 0.5[f(0.25) + f(0.75) + f(1.25) + f(1.75)]$$
+$$= 0.5[0.0625 + 0.5625 + 1.5625 + 3.0625] = 0.5(5.25) = 2.625$$
+
+(Exact answer: $\\frac{8}{3} \\approx 2.667$)`,
+    formula: "$$M_n = \\Delta x \\sum_{i=1}^{n} f(\\bar{x}_i)$$",
+    quickCheck: "What is the midpoint of the interval [1, 3]?",
+    quickCheckAnswer: "2",
+    orderIndex: 0,
+  });
+
+  await storage.createLearnCard({
+    topicId: approx.id,
+    title: "Skill 2: Simpson's Approximation",
+    content: `Simpson's rule uses parabolas to approximate the curve. Requires $n$ to be **even**:
+
+$$S_n = \\frac{\\Delta x}{3}[f(x_0) + 4f(x_1) + 2f(x_2) + 4f(x_3) + \\cdots + 4f(x_{n-1}) + f(x_n)]$$
+
+**Coefficient pattern:** $1, 4, 2, 4, 2, \\ldots, 4, 1$
+
+**Steps:**
+1. Compute $\\Delta x = \\frac{b-a}{n}$ (make sure $n$ is even)
+2. Find all sample points $x_0, x_1, \\ldots, x_n$
+3. Apply alternating coefficients: $1, 4, 2, 4, 2, \\ldots, 4, 1$
+4. Multiply sum by $\\frac{\\Delta x}{3}$
+
+**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:
+
+$$S_4 = \\frac{0.5}{3}[f(0) + 4f(0.5) + 2f(1) + 4f(1.5) + f(2)]$$
+$$= \\frac{0.5}{3}[0 + 4(0.25) + 2(1) + 4(2.25) + 4]$$
+$$= \\frac{0.5}{3}[0 + 1 + 2 + 9 + 4] = \\frac{0.5}{3}(16) = \\frac{8}{3}$$
+
+> Simpson's rule gives the **exact** answer for polynomials of degree $\\leq 3$.`,
+    formula: "$$S_n = \\frac{\\Delta x}{3}[f(x_0) + 4f(x_1) + 2f(x_2) + \\cdots + 4f(x_{n-1}) + f(x_n)]$$",
+    quickCheck: "Must n be even or odd for Simpson's rule?",
+    quickCheckAnswer: "even",
+    orderIndex: 1,
+  });
+
+  await storage.createLearnCard({
+    topicId: approx.id,
+    title: "Skill 3: Trapezoidal Approximation",
+    content: `The trapezoidal rule approximates the area using trapezoids:
+
+$$T_n = \\frac{\\Delta x}{2}[f(x_0) + 2f(x_1) + 2f(x_2) + \\cdots + 2f(x_{n-1}) + f(x_n)]$$
+
+**Coefficient pattern:** First and last get $1$, all middle terms get $2$.
+
+**Steps:**
+1. Compute $\\Delta x = \\frac{b-a}{n}$
+2. Find all sample points $x_0, x_1, \\ldots, x_n$
+3. Evaluate $f$ at each point
+4. Apply: first + last get coefficient 1, all others get coefficient 2
+5. Multiply by $\\frac{\\Delta x}{2}$
+
+**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:
+
+$\\Delta x = 0.5$, points: $0, 0.5, 1, 1.5, 2$
+
+$$T_4 = \\frac{0.5}{2}[f(0) + 2f(0.5) + 2f(1) + 2f(1.5) + f(2)]$$
+$$= 0.25[0 + 2(0.25) + 2(1) + 2(2.25) + 4]$$
+$$= 0.25[0 + 0.5 + 2 + 4.5 + 4] = 0.25(11) = 2.75$$
+
+(Exact answer: $\\frac{8}{3} \\approx 2.667$)
+
+**Error comparison:** Generally, Midpoint is more accurate than Trapezoidal, and Simpson's is the most accurate.`,
+    formula: "$$T_n = \\frac{\\Delta x}{2}[f(x_0) + 2f(x_1) + \\cdots + 2f(x_{n-1}) + f(x_n)]$$",
+    quickCheck: "In the trapezoidal rule, what coefficient do the middle terms get?",
+    quickCheckAnswer: "2",
+    orderIndex: 2,
+  });
+
+  // Approximations question templates
+  await storage.createQuestionTemplate({
+    topicId: approx.id,
+    templateText: "Using the Midpoint Rule with $n = {n}$, approximate $\\int_0^{b} x \\, dx$.",
+    solutionTemplate: "$\\Delta x = \\frac{{b}}{{n}}$\n\nMidpoints evaluated and summed.\n\nAnswer: ${answer}$",
+    answerType: "numeric",
+    parameters: { n: { min: 2, max: 6 }, b: { min: 2, max: 6 } },
+  });
+
+  console.log("Database seeded with Calc 2 Part 1 content!");
 }

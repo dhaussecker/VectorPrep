@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { LayoutDashboard, BookOpen, ClipboardCheck, BarChart3, GraduationCap, LogOut, Sun, Moon, Settings } from "lucide-react";
+import { LayoutDashboard, BookOpen, ClipboardCheck, BarChart3, GraduationCap, LogOut, Sun, Moon, Settings, FileText } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,10 +19,11 @@ import { useTheme } from "@/components/theme-provider";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Topics", url: "/topics", icon: BookOpen },
+  { title: "Classes", url: "/classes", icon: BookOpen },
   { title: "Learn", url: "/learn", icon: GraduationCap },
   { title: "Practice", url: "/practice", icon: ClipboardCheck },
   { title: "Progress", url: "/progress", icon: BarChart3 },
+  { title: "Cheat Sheet", url: "/cheat-sheet", icon: FileText },
 ];
 
 export function AppSidebar() {
@@ -101,7 +102,7 @@ export function AppSidebar() {
           </Avatar>
           <div className="flex flex-col flex-1 min-w-0">
             <span className="text-sm font-medium truncate" data-testid="text-user-name">{user?.displayName}</span>
-            <span className="text-xs text-muted-foreground truncate">@{user?.username}</span>
+            <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -1,19 +1,28 @@
 import { eq, and, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, topics, learnCards, questionTemplates,
+  users, courses, topics, learnCards, questionTemplates,
   userLearnProgress, userPracticeProgress, practiceAttempts,
-  type User, type InsertUser, type Topic, type InsertTopic,
+  cheatSheetEntries,
+  type User, type InsertUser,
+  type Course, type InsertCourse,
+  type Topic, type InsertTopic,
   type LearnCard, type InsertLearnCard,
   type QuestionTemplate, type InsertQuestionTemplate,
   type UserLearnProgress, type InsertUserLearnProgress,
   type UserPracticeProgress, type InsertUserPracticeProgress,
+  type CheatSheetEntry, type InsertCheatSheetEntry,
 } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+
+  getCourses(): Promise<Course[]>;
+  getCourse(id: string): Promise<Course | undefined>;
+  createCourse(course: InsertCourse): Promise<Course>;
+  getTopicsByCourse(courseId: string): Promise<Topic[]>;
 
   getTopics(): Promise<Topic[]>;
   getTopic(id: string): Promise<Topic | undefined>;
@@ -46,6 +55,10 @@ export interface IStorage {
 
   updateQuestionTemplate(id: string, data: Partial<InsertQuestionTemplate>): Promise<QuestionTemplate | undefined>;
   deleteQuestionTemplate(id: string): Promise<void>;
+
+  getCheatSheetEntries(userId: string, topicId?: string): Promise<CheatSheetEntry[]>;
+  addCheatSheetEntry(entry: InsertCheatSheetEntry): Promise<CheatSheetEntry>;
+  deleteCheatSheetEntry(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -54,14 +67,32 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
   async createUser(user: InsertUser): Promise<User> {
     const [created] = await db.insert(users).values(user).returning();
     return created;
+  }
+
+  async getCourses(): Promise<Course[]> {
+    return db.select().from(courses).orderBy(courses.orderIndex);
+  }
+
+  async getCourse(id: string): Promise<Course | undefined> {
+    const [course] = await db.select().from(courses).where(eq(courses.id, id));
+    return course;
+  }
+
+  async createCourse(course: InsertCourse): Promise<Course> {
+    const [created] = await db.insert(courses).values(course).returning();
+    return created;
+  }
+
+  async getTopicsByCourse(courseId: string): Promise<Topic[]> {
+    return db.select().from(topics).where(eq(topics.courseId, courseId)).orderBy(topics.orderIndex);
   }
 
   async getTopics(): Promise<Topic[]> {
@@ -183,6 +214,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(userLearnProgress).where(eq(userLearnProgress.topicId, id));
     await db.delete(userPracticeProgress).where(eq(userPracticeProgress.topicId, id));
     await db.delete(practiceAttempts).where(eq(practiceAttempts.topicId, id));
+    await db.delete(cheatSheetEntries).where(eq(cheatSheetEntries.topicId, id));
     await db.delete(topics).where(eq(topics.id, id));
   }
 
@@ -204,6 +236,29 @@ export class DatabaseStorage implements IStorage {
   async deleteQuestionTemplate(id: string): Promise<void> {
     await db.delete(userPracticeProgress).where(eq(userPracticeProgress.questionTemplateId, id));
     await db.delete(questionTemplates).where(eq(questionTemplates.id, id));
+  }
+
+  async getCheatSheetEntries(userId: string, topicId?: string): Promise<CheatSheetEntry[]> {
+    if (topicId) {
+      return db.select().from(cheatSheetEntries)
+        .where(and(eq(cheatSheetEntries.userId, userId), eq(cheatSheetEntries.topicId, topicId)))
+        .orderBy(cheatSheetEntries.orderIndex);
+    }
+    return db.select().from(cheatSheetEntries)
+      .where(eq(cheatSheetEntries.userId, userId))
+      .orderBy(cheatSheetEntries.orderIndex);
+  }
+
+  async addCheatSheetEntry(entry: InsertCheatSheetEntry): Promise<CheatSheetEntry> {
+    const [created] = await db.insert(cheatSheetEntries).values(entry).returning();
+    return created;
+  }
+
+  async deleteCheatSheetEntry(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(cheatSheetEntries)
+      .where(and(eq(cheatSheetEntries.id, id), eq(cheatSheetEntries.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 

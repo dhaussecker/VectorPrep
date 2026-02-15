@@ -1,26 +1,51 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
+import { supabaseAdmin } from "./supabase";
 import type { User } from "@shared/schema";
 
-function requireAuth(req: any, res: any, next: any) {
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ message: "Not authenticated" });
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: User;
   }
-  next();
 }
 
-function requireAdmin(req: any, res: any, next: any) {
-  if (!req.isAuthenticated() || !req.user) {
+async function requireAuth(req: any, res: any, next: any) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const token = authHeader.slice(7);
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (error || !data.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const user = await storage.getUser(data.user.id);
+    if (!user) {
+      return res.status(401).json({ message: "User profile not found" });
+    }
+
+    req.user = user;
+    next();
+  } catch {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  const user = req.user as User;
-  if (!user.isAdmin) {
-    return res.status(403).json({ message: "Admin access required" });
-  }
-  next();
+}
+
+async function requireAdmin(req: any, res: any, next: any) {
+  await requireAuth(req, res, () => {
+    const user = req.user as User;
+    if (!user.isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  });
 }
 
 function generateFromTemplate(
@@ -101,6 +126,111 @@ export async function registerRoutes(
   setupAuth(app);
 
   await seedDatabase();
+
+  app.get("/api/courses", requireAuth, async (_req, res) => {
+    try {
+      const allCourses = await storage.getCourses();
+      res.json(allCourses);
+    } catch (err) {
+      console.error("Error fetching courses:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/courses/:courseId/topics", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { courseId } = req.params;
+      const course = await storage.getCourse(courseId);
+      if (!course) return res.status(404).json({ message: "Course not found" });
+
+      const courseTopics = await storage.getTopicsByCourse(courseId);
+
+      const topicsWithProgress = await Promise.all(
+        courseTopics.map(async (topic) => {
+          const cards = await storage.getLearnCardsByTopic(topic.id);
+          const learnProgress = await storage.getUserLearnProgress(user.id, topic.id);
+          const learnCompleted = learnProgress.filter((p) => p.completed).length;
+          const learnPercent = cards.length > 0 ? (learnCompleted / cards.length) * 100 : 0;
+
+          const templates = await storage.getQuestionTemplatesByTopic(topic.id);
+          const practiceProgress = await storage.getUserPracticeProgress(user.id, topic.id);
+          const practiceCorrect = practiceProgress.filter((p) => p.correct).length;
+          const practicePercent = templates.length > 0 ? (practiceCorrect / templates.length) * 100 : 0;
+
+          return { topic, learnPercent, practicePercent };
+        })
+      );
+
+      res.json({ course, topics: topicsWithProgress });
+    } catch (err) {
+      console.error("Error fetching course topics:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/cheatsheet", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const allTopics = await storage.getTopics();
+      const userEntries = await storage.getCheatSheetEntries(user.id);
+
+      const sections = await Promise.all(
+        allTopics.map(async (topic) => {
+          const cards = await storage.getLearnCardsByTopic(topic.id);
+          const presetFormulas = cards
+            .filter((c) => c.formula)
+            .map((c) => ({ id: c.id, title: c.title, formula: c.formula!, source: "preset" as const }));
+
+          const userFormulas = userEntries
+            .filter((e) => e.topicId === topic.id)
+            .map((e) => ({ id: e.id, title: e.label, formula: e.formula, source: "user" as const }));
+
+          const formulas = [...presetFormulas, ...userFormulas];
+          return { topic, formulas };
+        })
+      );
+      res.json(sections);
+    } catch (err) {
+      console.error("Error fetching cheat sheet:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/cheatsheet", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { topicId, formula, label } = req.body;
+      if (!topicId || !formula || !label) {
+        return res.status(400).json({ message: "topicId, formula, and label are required" });
+      }
+
+      const entry = await storage.addCheatSheetEntry({
+        userId: user.id,
+        topicId,
+        formula,
+        label,
+      });
+      res.json(entry);
+    } catch (err) {
+      console.error("Error adding cheat sheet entry:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/cheatsheet/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const deleted = await storage.deleteCheatSheetEntry(req.params.id, user.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting cheat sheet entry:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
   app.get("/api/progress/overview", requireAuth, async (req, res) => {
     try {

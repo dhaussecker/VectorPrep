@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
-import type { Topic } from "@shared/schema";
+import type { Topic, Course } from "@shared/schema";
 
 type GeneratedQuestion = {
   attemptId: string;
@@ -18,30 +18,36 @@ type GeneratedQuestion = {
   questionText: string;
 };
 
-export default function PracticePage() {
-  const params = useParams<{ topicId: string }>();
-  const topicId = params.topicId;
+type CourseTopicsData = {
+  course: Course;
+  topics: { topic: Topic; learnPercent: number; practicePercent: number }[];
+};
 
-  if (!topicId) {
-    return <PracticeTopicSelector />;
+export default function PracticePage() {
+  const params = useParams<{ courseId: string; topicId: string }>();
+  const { courseId, topicId } = params;
+
+  if (courseId && topicId) {
+    return <PracticeSession courseId={courseId} topicId={topicId} />;
   }
 
-  return <PracticeSession topicId={topicId} />;
+  if (courseId) {
+    return <PracticeTopicSelector courseId={courseId} />;
+  }
+
+  return <PracticeCourseSelector />;
 }
 
-function PracticeTopicSelector() {
-  const { data: progressData, isLoading } = useQuery<{
-    overall: number;
-    topics: { topic: Topic; learnPercent: number; practicePercent: number; totalPercent: number }[];
-  }>({
-    queryKey: ["/api/progress/overview"],
+function PracticeCourseSelector() {
+  const { data: courses, isLoading } = useQuery<Course[]>({
+    queryKey: ["/api/courses"],
   });
 
   return (
     <div className="flex-1 overflow-auto">
       <div className="px-6 md:px-8 py-6">
         <h1 className="text-2xl font-bold tracking-tight mb-1" data-testid="text-practice-title">Practice Mode</h1>
-        <p className="text-muted-foreground text-sm mb-6">Select a topic to practice</p>
+        <p className="text-muted-foreground text-sm mb-6">Select a course to practice</p>
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -51,8 +57,58 @@ function PracticeTopicSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {progressData?.topics.map((tp) => (
-              <Link key={tp.topic.id} href={`/practice/${tp.topic.id}`}>
+            {courses?.map((course) => (
+              <Link key={course.id} href={`/practice/${course.id}`}>
+                <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-practice-course-${course.id}`}>
+                  <CardContent className="p-5 flex items-center gap-4">
+                    <span className="text-3xl flex-shrink-0">{course.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate">{course.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{course.description}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PracticeTopicSelector({ courseId }: { courseId: string }) {
+  const { data, isLoading } = useQuery<CourseTopicsData>({
+    queryKey: ["/api/courses", courseId, "topics"],
+  });
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <div className="px-6 md:px-8 py-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/practice">
+            <Button variant="ghost" size="icon">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-practice-title">
+              {data?.course.name ?? "Practice Mode"}
+            </h1>
+            <p className="text-muted-foreground text-sm">Select a topic to practice</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}><CardContent className="p-5"><Skeleton className="h-20 w-full" /></CardContent></Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data?.topics.map((tp) => (
+              <Link key={tp.topic.id} href={`/practice/${courseId}/${tp.topic.id}`}>
                 <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-practice-topic-${tp.topic.id}`}>
                   <CardContent className="p-5 flex items-center gap-4">
                     <span className="text-3xl flex-shrink-0">{tp.topic.icon}</span>
@@ -75,7 +131,7 @@ function PracticeTopicSelector() {
   );
 }
 
-function PracticeSession({ topicId }: { topicId: string }) {
+function PracticeSession({ courseId, topicId }: { courseId: string; topicId: string }) {
   const [userAnswer, setUserAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [gradeResult, setGradeResult] = useState<{ correct: boolean; correctAnswer: string; solutionSteps: string } | null>(null);
@@ -104,6 +160,7 @@ function PracticeSession({ topicId }: { topicId: string }) {
       setSubmitted(true);
       queryClient.invalidateQueries({ queryKey: ["/api/progress/overview"] });
       queryClient.invalidateQueries({ queryKey: ["/api/practice", topicId, "info"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses", courseId, "topics"] });
     },
   });
 
@@ -128,7 +185,7 @@ function PracticeSession({ topicId }: { topicId: string }) {
     <div className="flex-1 overflow-auto">
       <div className="px-6 md:px-8 py-6">
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <Link href="/practice">
+          <Link href={`/practice/${courseId}`}>
             <Button variant="ghost" size="icon" data-testid="button-back-practice">
               <ChevronLeft className="w-4 h-4" />
             </Button>

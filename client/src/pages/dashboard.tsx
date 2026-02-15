@@ -43,7 +43,7 @@ export default function Dashboard() {
                 Continue where you left off and keep building momentum.
               </p>
             </div>
-            <Link href="/topics">
+            <Link href="/classes">
               <Button data-testid="button-start-learning">
                 <Sparkles className="w-4 h-4" />
                 Start Learning
@@ -169,13 +169,13 @@ function TopicCard({ topicProgress }: { topicProgress: TopicProgress }) {
           <Progress value={practicePercent} className="h-1.5" />
         </div>
         <div className="flex items-center gap-2 pt-1">
-          <Link href={`/learn/${topic.id}`} className="flex-1">
+          <Link href={`/learn/${topic.courseId ?? ""}/${topic.id}`} className="flex-1">
             <Button variant="outline" size="sm" className="w-full" data-testid={`button-learn-${topic.id}`}>
               <BookOpen className="w-3 h-3" />
               Learn
             </Button>
           </Link>
-          <Link href={`/practice/${topic.id}`} className="flex-1">
+          <Link href={`/practice/${topic.courseId ?? ""}/${topic.id}`} className="flex-1">
             <Button variant="outline" size="sm" className="w-full" data-testid={`button-practice-${topic.id}`}>
               <ClipboardCheck className="w-3 h-3" />
               Practice
