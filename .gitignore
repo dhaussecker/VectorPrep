@@ -6,4 +6,5 @@ vite.config.ts.*
 *.tar.gz
 .env
 .local/
-api/index.mjs
+api/*.js
+!api/index.js
