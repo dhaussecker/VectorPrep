@@ -6,10 +6,12 @@ import { rm, readFile } from "fs/promises";
 // which helps cold start times
 const allowlist = [
   "@google/generative-ai",
+  "@supabase/supabase-js",
   "axios",
   "connect-pg-simple",
   "cors",
   "date-fns",
+  "dotenv",
   "drizzle-orm",
   "drizzle-zod",
   "express",
@@ -46,18 +48,33 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    platform: "node",
+  const sharedEsbuildOptions = {
+    platform: "node" as const,
     bundle: true,
-    format: "cjs",
-    outfile: "dist/index.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
     external: externals,
-    logLevel: "info",
+    alias: {
+      "@shared": "./shared",
+    },
+    logLevel: "info" as const,
+  };
+
+  await esbuild({
+    ...sharedEsbuildOptions,
+    entryPoints: ["server/index.ts"],
+    format: "cjs",
+    outfile: "dist/index.cjs",
+  });
+
+  console.log("building serverless function...");
+  await esbuild({
+    ...sharedEsbuildOptions,
+    entryPoints: ["api/index.ts"],
+    format: "esm",
+    outfile: "api/index.mjs",
   });
 }
 
