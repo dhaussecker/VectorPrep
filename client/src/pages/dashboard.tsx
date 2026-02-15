@@ -32,11 +32,18 @@ export default function Dashboard() {
     queryKey: ["/api/courses"],
   });
 
-  const overallPercent = progressData?.overall ?? 0;
   const firstName = user?.displayName?.split(" ")[0] ?? "Student";
 
   // Group topics by courseId
   const courseGroups = groupTopicsByCourse(progressData?.topics ?? [], courses ?? []);
+
+  // Only count accessible (non-locked) topics for stats
+  const accessibleGroups = courseGroups.filter((g) => !g.course?.locked);
+  const accessibleTopics = accessibleGroups.flatMap((g) => g.topics);
+  const accessibleTopicCount = accessibleTopics.length;
+  const overallPercent = accessibleTopicCount > 0
+    ? accessibleTopics.reduce((sum, tp) => sum + tp.totalPercent, 0) / accessibleTopicCount
+    : 0;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -70,7 +77,7 @@ export default function Dashboard() {
             <StatCard
               icon={<BookOpen className="w-4 h-4" />}
               label="Topics Available"
-              value={String(progressData?.topics.length ?? 0)}
+              value={String(accessibleTopicCount)}
               isLoading={isLoading}
             />
             <StatCard
@@ -85,8 +92,8 @@ export default function Dashboard() {
 
       <div className="px-6 md:px-8 py-6">
         <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <h2 className="text-lg font-semibold" data-testid="text-topics-heading">Your Topics</h2>
-          <Link href="/topics">
+          <h2 className="text-lg font-semibold" data-testid="text-topics-heading">Your Classes</h2>
+          <Link href="/classes">
             <Button variant="ghost" size="sm" data-testid="link-view-all-topics">
               View All
               <ArrowRight className="w-3 h-3 ml-1" />
@@ -168,7 +175,7 @@ function groupTopicsByCourse(topics: TopicProgress[], courses: Course[]): Course
 }
 
 function CourseSection({ group }: { group: CourseGroup }) {
-  const [open, setOpen] = useState(!group.course?.locked);
+  const [open, setOpen] = useState(false);
   const courseName = group.course?.name ?? "Other Topics";
   const courseIcon = group.course?.icon ?? "📚";
   const isLocked = group.course?.locked ?? false;
@@ -202,7 +209,7 @@ function CourseSection({ group }: { group: CourseGroup }) {
       <Card>
         <CollapsibleTrigger asChild>
           <button className="w-full text-left">
-            <CardHeader className="p-4 pb-3">
+            <CardHeader className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-2xl flex-shrink-0">{courseIcon}</span>
@@ -219,6 +226,9 @@ function CourseSection({ group }: { group: CourseGroup }) {
                   </Badge>
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
                 </div>
+              </div>
+              <div className="mt-3 px-1">
+                <Progress value={group.averageProgress} className="h-1.5" />
               </div>
             </CardHeader>
           </button>

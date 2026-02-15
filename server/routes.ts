@@ -15,11 +15,16 @@ const __dirname = path.dirname(__filename);
 
 const uploadsDir = path.resolve(
   process.env.NODE_ENV === "production"
-    ? path.resolve(__dirname, "public", "uploads")
+    ? "/tmp/uploads"
     : path.resolve(__dirname, "..", "client", "public", "uploads"),
 );
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch {
+  // Serverless environments may have read-only filesystems
+  console.warn("Could not create uploads directory:", uploadsDir);
 }
 
 const upload = multer({
