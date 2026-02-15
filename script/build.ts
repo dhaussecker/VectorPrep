@@ -74,6 +74,9 @@ async function buildAll() {
     ...sharedEsbuildOptions,
     entryPoints: ["server/api.ts"],
     format: "esm",
+    banner: {
+      js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+    },
     outfile: "api/index.js",
   });
 }

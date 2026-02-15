@@ -7,4 +7,5 @@ vite.config.ts.*
 .env
 .local/
 api/*.js
+api/*.cjs
 !api/index.js
