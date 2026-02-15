@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
-import { BookOpen, ClipboardCheck, Search, ArrowLeft, FolderOpen } from "lucide-react";
+import { BookOpen, ClipboardCheck, Search, ArrowLeft, FolderOpen, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -86,21 +86,39 @@ function ClassesListView() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((course) => (
-              <Link key={course.id} href={`/classes/${course.id}`}>
-                <Card className="hover-elevate transition-all cursor-pointer h-full">
+            {filtered.map((course) =>
+              course.locked ? (
+                <Card key={course.id} className="opacity-50 border-dashed h-full">
                   <CardHeader className="p-5 pb-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl" role="img">{course.icon}</span>
+                      <span className="text-3xl grayscale" role="img">{course.icon}</span>
                       <CardTitle className="text-lg">{course.name}</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent className="p-5 pt-0">
                     <p className="text-sm text-muted-foreground line-clamp-2">{course.description}</p>
+                    <Badge variant="secondary" className="mt-3 gap-1">
+                      <Lock className="w-3 h-3" />
+                      Coming Soon
+                    </Badge>
                   </CardContent>
                 </Card>
-              </Link>
-            ))}
+              ) : (
+                <Link key={course.id} href={`/classes/${course.id}`}>
+                  <Card className="hover-elevate transition-all cursor-pointer h-full">
+                    <CardHeader className="p-5 pb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl" role="img">{course.icon}</span>
+                        <CardTitle className="text-lg">{course.name}</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 pt-0">
+                      <p className="text-sm text-muted-foreground line-clamp-2">{course.description}</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            )}
           </div>
         )}
       </div>

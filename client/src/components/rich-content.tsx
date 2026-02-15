@@ -5,6 +5,18 @@ import remarkGfm from "remark-gfm";
 import { useRef, useCallback } from "react";
 import "katex/dist/katex.min.css";
 
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 interface RichContentProps {
   content: string;
   className?: string;
@@ -44,10 +56,16 @@ export function RichContent({ content, className = "", onAddFormula }: RichConte
           // rehype-katex wraps display math in a <p> containing <span class="katex-display">
           // We override <p> to detect and wrap display math with a button
           p: ({ children, node }) => {
-            const hasBlock = Array.isArray(children) && children.some(
+            const hasBlockInNode = node?.children?.some(
+              (child: any) =>
+                child.type === "element" &&
+                child.tagName &&
+                ["img", "video", "iframe"].includes(child.tagName)
+            );
+            const hasBlockInChildren = Array.isArray(children) && children.some(
               (child: any) => typeof child === "object" && child?.type && ["img", "video", "iframe"].includes(child.type)
             );
-            if (hasBlock) return <div className="my-2">{children}</div>;
+            if (hasBlockInNode || hasBlockInChildren) return <div className="my-2">{children}</div>;
 
             // Check if this paragraph contains display math (katex-display)
             if (onAddFormula && node) {
@@ -58,7 +76,16 @@ export function RichContent({ content, className = "", onAddFormula }: RichConte
               );
               if (hasDisplayMath) {
                 return (
-                  <div className="katex-display-wrap my-2 leading-relaxed" style={{ position: "relative" }}>
+                  <div
+                    className="katex-display-wrap my-2 leading-relaxed group/formula"
+                    style={{
+                      position: "relative",
+                      borderLeft: "3px solid hsl(var(--primary) / 0.3)",
+                      paddingLeft: "12px",
+                      borderRadius: "4px",
+                      background: "hsl(var(--primary) / 0.03)",
+                    }}
+                  >
                     {children}
                     <button
                       type="button"
@@ -66,30 +93,36 @@ export function RichContent({ content, className = "", onAddFormula }: RichConte
                       title="Add to cheat sheet"
                       style={{
                         position: "absolute",
-                        top: "2px",
-                        right: "2px",
-                        width: "28px",
-                        height: "28px",
+                        top: "4px",
+                        right: "4px",
+                        height: "26px",
+                        paddingLeft: "8px",
+                        paddingRight: "8px",
                         borderRadius: "6px",
                         background: "hsl(var(--primary) / 0.1)",
                         color: "hsl(var(--primary))",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        opacity: 0,
-                        transition: "opacity 0.15s",
+                        gap: "4px",
+                        fontSize: "11px",
+                        fontWeight: 500,
                         zIndex: 10,
-                        border: "none",
+                        border: "1px solid hsl(var(--primary) / 0.2)",
                         cursor: "pointer",
+                        transition: "all 0.15s",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = "hsl(var(--primary) / 0.2)";
+                        e.currentTarget.style.borderColor = "hsl(var(--primary) / 0.4)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "hsl(var(--primary) / 0.1)";
+                        e.currentTarget.style.borderColor = "hsl(var(--primary) / 0.2)";
                       }}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Save
                     </button>
                   </div>
                 );
@@ -106,16 +139,35 @@ export function RichContent({ content, className = "", onAddFormula }: RichConte
               loading="lazy"
             />
           ),
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline underline-offset-2"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const youtubeId = href ? extractYouTubeId(href) : null;
+            if (youtubeId) {
+              return (
+                <div className="my-3">
+                  <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                    <iframe
+                      src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+                      title="YouTube video"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="absolute inset-0 w-full h-full rounded-md"
+                      style={{ border: "none" }}
+                    />
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2"
+              >
+                {children}
+              </a>
+            );
+          },
           code: ({ className: codeClassName, children, ...props }) => {
             const isInline = !codeClassName;
             if (isInline) {
@@ -161,8 +213,8 @@ export function RichContent({ content, className = "", onAddFormula }: RichConte
       </ReactMarkdown>
       {onAddFormula && (
         <style>{`
-          .katex-display-wrap:hover .formula-add-btn {
-            opacity: 1 !important;
+          .katex-display-wrap .formula-add-btn:active {
+            transform: scale(0.95);
           }
         `}</style>
       )}

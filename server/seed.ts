@@ -581,7 +581,11 @@ $\\Delta x = 0.5$, midpoints: $0.25, 0.75, 1.25, 1.75$
 $$M_4 = 0.5[f(0.25) + f(0.75) + f(1.25) + f(1.75)]$$
 $$= 0.5[0.0625 + 0.5625 + 1.5625 + 3.0625] = 0.5(5.25) = 2.625$$
 
-(Exact answer: $\\frac{8}{3} \\approx 2.667$)`,
+(Exact answer: $\\frac{8}{3} \\approx 2.667$)
+
+**Practice Problem:**
+
+![Midpoint approximation example problem](/midpoint-example.png)`,
     formula: "$$M_n = \\Delta x \\sum_{i=1}^{n} f(\\bar{x}_i)$$",
     quickCheck: "What is the midpoint of the interval [1, 3]?",
     quickCheckAnswer: "2",
@@ -658,5 +662,55 @@ $$= 0.25[0 + 0.5 + 2 + 4.5 + 4] = 0.25(11) = 2.75$$
     parameters: { n: { min: 2, max: 6 }, b: { min: 2, max: 6 } },
   });
 
-  console.log("Database seeded with Calc 2 Part 1 content!");
+  // ─── Calculus II Part 2 (Locked / Coming Soon) ──────────────────
+
+  const calc2part2 = await storage.createCourse({
+    name: "Calculus II Part 2",
+    description: "Polar coordinates, complex numbers, integral applications, arc length, and improper integrals",
+    icon: "📏",
+    orderIndex: 1,
+    locked: true,
+  });
+
+  await storage.createTopic({
+    courseId: calc2part2.id,
+    name: "Polar Coordinates",
+    description: "Polar curves, area, and conversion between coordinate systems",
+    icon: "🎯",
+    orderIndex: 0,
+  });
+
+  await storage.createTopic({
+    courseId: calc2part2.id,
+    name: "Complex Numbers",
+    description: "Complex arithmetic, polar form, Euler's formula, and De Moivre's theorem",
+    icon: "ℂ",
+    orderIndex: 1,
+  });
+
+  await storage.createTopic({
+    courseId: calc2part2.id,
+    name: "Integral Applications (Slicing & Shells)",
+    description: "Volume by disk, washer, and shell methods",
+    icon: "🔄",
+    orderIndex: 2,
+  });
+
+  await storage.createTopic({
+    courseId: calc2part2.id,
+    name: "Arc Length & Surface Area",
+    description: "Computing arc length and surface area of revolution",
+    icon: "📐",
+    orderIndex: 3,
+  });
+
+  await storage.createTopic({
+    courseId: calc2part2.id,
+    name: "Improper Integrals",
+    description: "Convergence, divergence, and evaluation of improper integrals",
+    icon: "∞",
+    orderIndex: 4,
+  });
+
+  console.log("Database seeded with Calc 2 Part 1 & Part 2 content!");
 }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ChevronLeft, RefreshCw, ArrowRight, Check, X, ClipboardCheck, Loader2 } from "lucide-react";
+import { ChevronLeft, RefreshCw, ArrowRight, Check, X, ClipboardCheck, Loader2, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,19 +57,35 @@ function PracticeCourseSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {courses?.map((course) => (
-              <Link key={course.id} href={`/practice/${course.id}`}>
-                <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-practice-course-${course.id}`}>
+            {courses?.map((course) =>
+              course.locked ? (
+                <Card key={course.id} className="opacity-50 border-dashed" data-testid={`card-practice-course-${course.id}`}>
                   <CardContent className="p-5 flex items-center gap-4">
-                    <span className="text-3xl flex-shrink-0">{course.icon}</span>
+                    <span className="text-3xl flex-shrink-0 grayscale">{course.icon}</span>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate">{course.name}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">{course.description}</p>
                     </div>
+                    <Badge variant="secondary" className="flex-shrink-0 gap-1">
+                      <Lock className="w-3 h-3" />
+                      Coming Soon
+                    </Badge>
                   </CardContent>
                 </Card>
-              </Link>
-            ))}
+              ) : (
+                <Link key={course.id} href={`/practice/${course.id}`}>
+                  <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-practice-course-${course.id}`}>
+                    <CardContent className="p-5 flex items-center gap-4">
+                      <span className="text-3xl flex-shrink-0">{course.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate">{course.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">{course.description}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            )}
           </div>
         )}
       </div>

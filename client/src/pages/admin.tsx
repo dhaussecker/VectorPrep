@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { RichContent } from "@/components/rich-content";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,11 +32,198 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
-  FolderOpen, Loader2, Eye, Code, ChevronLeft,
+  FolderOpen, Loader2, ImageIcon, Video,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Topic, LearnCard, QuestionTemplate } from "@shared/schema";
+
+const FORMULA_INSERTS = [
+  { label: "Fraction", template: "\\frac{a}{b}", tooltip: "\\frac{a}{b}" },
+  { label: "Integral", template: "\\int_{a}^{b} f(x)\\,dx", tooltip: "Definite integral" },
+  { label: "Sum", template: "\\sum_{i=1}^{n} a_i", tooltip: "Summation" },
+  { label: "Limit", template: "\\lim_{x \\to a} f(x)", tooltip: "Limit" },
+  { label: "Sqrt", template: "\\sqrt{x}", tooltip: "Square root" },
+  { label: "Power", template: "x^{n}", tooltip: "Exponent" },
+  { label: "Subscript", template: "x_{i}", tooltip: "Subscript" },
+  { label: "Infinity", template: "\\infty", tooltip: "Infinity symbol" },
+  { label: "Greek", template: "\\alpha", tooltip: "Alpha (try \\beta, \\gamma, \\theta, etc.)" },
+  { label: "Display $$", template: "$$\n\n$$", tooltip: "Display math block" },
+  { label: "Inline $", template: "$$", tooltip: "Inline math" },
+] as const;
+
+function useInsertAtCursor(
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>,
+  value: string,
+  setValue: (v: string) => void,
+) {
+  return useCallback(
+    (template: string) => {
+      const el = textareaRef.current;
+      if (!el) {
+        setValue(value + template);
+        return;
+      }
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const newValue = value.substring(0, start) + template + value.substring(end);
+      setValue(newValue);
+      requestAnimationFrame(() => {
+        el.focus();
+        const cursorPos = start + template.length;
+        el.setSelectionRange(cursorPos, cursorPos);
+      });
+    },
+    [textareaRef, value, setValue],
+  );
+}
+
+function FormulaInsertBar({
+  onInsert,
+}: {
+  onInsert: (template: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showYouTubeDialog, setShowYouTubeDialog] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      onInsert(`\n\n![${file.name}](${url})\n\n`);
+    } catch {
+      alert("Failed to upload image. Make sure the file is an image under 10MB.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleYouTubeInsert = () => {
+    if (youtubeUrl.trim()) {
+      onInsert(`\n\n${youtubeUrl.trim()}\n\n`);
+      setYoutubeUrl("");
+      setShowYouTubeDialog(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-1">
+        {FORMULA_INSERTS.map((item) => (
+          <Tooltip key={item.label}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs font-mono"
+                onClick={() => onInsert(item.template)}
+              >
+                {item.label}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-mono text-xs">{item.tooltip}</p>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+
+        <div className="w-px bg-border mx-1 self-stretch" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ImageIcon className="w-3 h-3 mr-1" />}
+              Image
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Upload an image (JPG, PNG, GIF, WebP)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setShowYouTubeDialog(true)}
+            >
+              <Video className="w-3 h-3 mr-1" />
+              YouTube
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Embed a YouTube video</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
+        />
+      </div>
+
+      <Dialog open={showYouTubeDialog} onOpenChange={setShowYouTubeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Embed YouTube Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>YouTube URL</Label>
+              <Input
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                onKeyDown={(e) => e.key === "Enter" && handleYouTubeInsert()}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Paste a YouTube URL and it will automatically embed as a video player.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowYouTubeDialog(false)}>Cancel</Button>
+            <Button onClick={handleYouTubeInsert} disabled={!youtubeUrl.trim()}>Insert</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -421,14 +609,16 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
 }) {
   const [cardTitle, setCardTitle] = useState(defaultValues?.title || "");
   const [content, setContent] = useState(defaultValues?.content || "");
+  const [formula, setFormula] = useState(defaultValues?.formula || "");
   const [quickCheck, setQuickCheck] = useState(defaultValues?.quickCheck || "");
   const [quickCheckAnswer, setQuickCheckAnswer] = useState(defaultValues?.quickCheckAnswer || "");
   const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
-  const [showPreview, setShowPreview] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const insertAtCursor = useInsertAtCursor(textareaRef, content, setContent);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -445,28 +635,58 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Content (Markdown + LaTeX)</Label>
-              <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} data-testid="button-toggle-preview">
-                {showPreview ? <Code className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                {showPreview ? "Edit" : "Preview"}
-              </Button>
+            <Label>Content (Markdown + LaTeX)</Label>
+            <FormulaInsertBar onInsert={insertAtCursor} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Edit</p>
+                <Textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={"Write content using Markdown and LaTeX...\n\nUse $...$ for inline math: $f(x) = x^2$\nUse $$...$$ for display math:\n$$\\int_0^1 x\\,dx = \\frac{1}{2}$$"}
+                  className="min-h-[250px] font-mono text-sm"
+                  data-testid="input-card-content"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Preview</p>
+                <Card className="min-h-[250px] overflow-auto">
+                  <CardContent className="p-4">
+                    {content ? (
+                      <RichContent content={content} className="text-sm" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Preview will appear here...</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-            {showPreview ? (
-              <Card className="min-h-[200px]">
-                <CardContent className="p-4">
-                  <RichContent content={content} className="text-sm" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label>Cheat Sheet Formula (optional)</Label>
+              <Badge variant="outline" className="text-[10px]">Shows on cheat sheet</Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                value={formula}
+                onChange={(e) => setFormula(e.target.value)}
+                placeholder='e.g. $$\int_a^b f(x)\,dx$$'
+                className="font-mono text-sm"
+                data-testid="input-card-formula"
+              />
+              <Card className="overflow-auto">
+                <CardContent className="p-2 min-h-[36px] flex items-center">
+                  {formula ? (
+                    <RichContent content={formula} className="text-sm" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Formula preview...</p>
+                  )}
                 </CardContent>
               </Card>
-            ) : (
-              <Textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={"Write content using Markdown and LaTeX...\n\nUse $...$ for inline math: $f(x) = x^2$\nUse $$...$$ for display math:\n$$\\int_0^1 x\\,dx = \\frac{1}{2}$$\n\nSupports **bold**, *italic*, tables, code blocks, and more."}
-                className="min-h-[200px] font-mono text-sm"
-                data-testid="input-card-content"
-              />
-            )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -479,18 +699,10 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
               <Input value={quickCheckAnswer} onChange={(e) => setQuickCheckAnswer(e.target.value)} placeholder="Expected answer..." data-testid="input-card-quick-answer" />
             </div>
           </div>
-
-          <Card className="bg-muted/30">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Formatting Tips:</strong> Use <code className="bg-muted px-1 rounded">$...$</code> for inline formulas, <code className="bg-muted px-1 rounded">$$...$$</code> for display formulas. Supports Markdown: **bold**, *italic*, tables, code blocks, lists, images via <code className="bg-muted px-1 rounded">![alt](url)</code>, and video links.
-              </p>
-            </CardContent>
-          </Card>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSubmit({ title: cardTitle, content, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
+          <Button onClick={() => onSubmit({ title: cardTitle, content, formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
           </Button>
         </DialogFooter>
@@ -663,8 +875,12 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
   const [parametersJson, setParametersJson] = useState(
     defaultValues?.parameters ? JSON.stringify(defaultValues.parameters, null, 2) : '{\n  "a": { "min": 1, "max": 10 }\n}'
   );
-  const [showPreview, setShowPreview] = useState(false);
   const [jsonError, setJsonError] = useState("");
+  const questionRef = useRef<HTMLTextAreaElement>(null);
+  const solutionRef = useRef<HTMLTextAreaElement>(null);
+  const insertAtQuestionCursor = useInsertAtCursor(questionRef, templateText, setTemplateText);
+  const insertAtSolutionCursor = useInsertAtCursor(solutionRef, solutionTemplate, setSolutionTemplate);
+  const [activeField, setActiveField] = useState<"question" | "solution">("question");
 
   const validateJson = (val: string) => {
     try {
@@ -687,77 +903,112 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
     });
   };
 
+  const handleInsert = (template: string) => {
+    if (activeField === "solution") {
+      insertAtSolutionCursor(template);
+    } else {
+      insertAtQuestionCursor(template);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <FormulaInsertBar onInsert={handleInsert} />
+
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Question Template (Markdown + LaTeX)</Label>
-              <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} data-testid="button-toggle-template-preview">
-                {showPreview ? <Code className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                {showPreview ? "Edit" : "Preview"}
-              </Button>
+            <Label>Question Template (Markdown + LaTeX)</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Edit</p>
+                <Textarea
+                  ref={questionRef}
+                  value={templateText}
+                  onChange={(e) => setTemplateText(e.target.value)}
+                  onFocus={() => setActiveField("question")}
+                  placeholder={'Use {param} for variables, e.g.: Find the derivative of $f(x) = {a}x^{n}$'}
+                  className="min-h-[100px] font-mono text-sm"
+                  data-testid="input-template-text"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Preview</p>
+                <Card className="min-h-[100px] overflow-auto">
+                  <CardContent className="p-4">
+                    {templateText ? (
+                      <RichContent content={templateText} className="text-sm" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Preview will appear here...</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-            {showPreview ? (
-              <Card className="min-h-[80px]">
-                <CardContent className="p-4">
-                  <RichContent content={templateText} className="text-sm" />
-                </CardContent>
-              </Card>
-            ) : (
-              <Textarea
-                value={templateText}
-                onChange={(e) => setTemplateText(e.target.value)}
-                placeholder={'Use {param} for variables, e.g.: Find the derivative of $f(x) = {a}x^{n}$'}
-                className="min-h-[80px] font-mono text-sm"
-                data-testid="input-template-text"
-              />
-            )}
           </div>
 
           <div className="space-y-2">
             <Label>Solution Template</Label>
-            <Textarea
-              value={solutionTemplate}
-              onChange={(e) => setSolutionTemplate(e.target.value)}
-              placeholder={'Solution steps with {param} variables and LaTeX formatting'}
-              className="min-h-[80px] font-mono text-sm"
-              data-testid="input-solution-template"
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Edit</p>
+                <Textarea
+                  ref={solutionRef}
+                  value={solutionTemplate}
+                  onChange={(e) => setSolutionTemplate(e.target.value)}
+                  onFocus={() => setActiveField("solution")}
+                  placeholder={'Solution steps with {param} variables and LaTeX formatting'}
+                  className="min-h-[100px] font-mono text-sm"
+                  data-testid="input-solution-template"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Preview</p>
+                <Card className="min-h-[100px] overflow-auto">
+                  <CardContent className="p-4">
+                    {solutionTemplate ? (
+                      <RichContent content={solutionTemplate} className="text-sm" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Preview will appear here...</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Answer Type</Label>
-            <Select value={answerType} onValueChange={setAnswerType}>
-              <SelectTrigger data-testid="select-answer-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="numeric">Numeric</SelectItem>
-                <SelectItem value="text">Text</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Parameters (JSON)</Label>
-            <Textarea
-              value={parametersJson}
-              onChange={(e) => { setParametersJson(e.target.value); validateJson(e.target.value); }}
-              className="min-h-[100px] font-mono text-sm"
-              data-testid="input-parameters-json"
-            />
-            {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Answer Type</Label>
+              <Select value={answerType} onValueChange={setAnswerType}>
+                <SelectTrigger data-testid="select-answer-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="numeric">Numeric</SelectItem>
+                  <SelectItem value="text">Text</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Parameters (JSON)</Label>
+              <Textarea
+                value={parametersJson}
+                onChange={(e) => { setParametersJson(e.target.value); validateJson(e.target.value); }}
+                className="min-h-[80px] font-mono text-sm"
+                data-testid="input-parameters-json"
+              />
+              {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+            </div>
           </div>
 
           <Card className="bg-muted/30">
             <CardContent className="p-3">
               <p className="text-xs text-muted-foreground">
-                <strong>Template Guide:</strong> Use <code className="bg-muted px-1 rounded">{"{param}"}</code> for random values. Define each parameter with min/max ranges in the JSON. The system generates random values within ranges and substitutes them into the question and solution.
+                <strong>Template Guide:</strong> Use <code className="bg-muted px-1 rounded">{"{param}"}</code> for random values. Define each parameter with min/max ranges in the JSON.
               </p>
             </CardContent>
           </Card>

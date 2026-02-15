@@ -1,10 +1,46 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import multer from "multer";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
 import type { User } from "@shared/schema";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const uploadsDir = path.resolve(
+  process.env.NODE_ENV === "production"
+    ? path.resolve(__dirname, "public", "uploads")
+    : path.resolve(__dirname, "..", "client", "public", "uploads"),
+);
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
+      cb(null, `${name}-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp|svg)$/i;
+    if (allowed.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
+    }
+  },
+});
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -172,7 +208,11 @@ export async function registerRoutes(
   app.get("/api/cheatsheet", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const allTopics = await storage.getTopics();
+      const courseId = req.query.courseId as string | undefined;
+      let allTopics = await storage.getTopics();
+      if (courseId) {
+        allTopics = allTopics.filter((t) => t.courseId === courseId);
+      }
       const userEntries = await storage.getCheatSheetEntries(user.id);
 
       const sections = await Promise.all(
@@ -414,6 +454,16 @@ export async function registerRoutes(
       console.error("Error grading answer:", err);
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  // ============ ADMIN UPLOAD ============
+
+  app.post("/api/admin/upload", requireAdmin, upload.single("image"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url });
   });
 
   // ============ ADMIN ROUTES ============

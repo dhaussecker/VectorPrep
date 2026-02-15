@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openssl rand:*)",
+      "Bash(node -e:*)",
+      "Bash(npm install:*)",
+      "Bash(nvm ls:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(ss:*)",
+      "Bash(fuser:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npm run dev:*)",
+      "Bash(xargs:*)",
+      "Bash(echo:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(pkill:*)",
+      "Bash(grep:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)",
+      "Bash(npm run build:*)",
+      "Bash(git rm:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.zicpjbylqizukwtibjes:Launch2023%21Sigma2024%21@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" psql:*)",
+      "Bash(jobs:*)"
+    ]
+  }
+}

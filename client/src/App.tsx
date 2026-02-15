@@ -32,6 +32,7 @@ function Router() {
       <Route path="/practice/:courseId/:topicId" component={PracticePage} />
       <Route path="/progress" component={ProgressPage} />
       <Route path="/cheat-sheet" component={CheatSheetPage} />
+      <Route path="/cheat-sheet/:courseId" component={CheatSheetPage} />
       <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>

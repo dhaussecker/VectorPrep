@@ -1,10 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen, FileText, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback } from "react";
@@ -57,19 +58,35 @@ function LearnCourseSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {courses?.map((course) => (
-              <Link key={course.id} href={`/learn/${course.id}`}>
-                <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-learn-course-${course.id}`}>
+            {courses?.map((course) =>
+              course.locked ? (
+                <Card key={course.id} className="opacity-50 border-dashed" data-testid={`card-learn-course-${course.id}`}>
                   <CardContent className="p-5 flex items-center gap-4">
-                    <span className="text-3xl flex-shrink-0">{course.icon}</span>
+                    <span className="text-3xl flex-shrink-0 grayscale">{course.icon}</span>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate">{course.name}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">{course.description}</p>
                     </div>
+                    <Badge variant="secondary" className="flex-shrink-0 gap-1">
+                      <Lock className="w-3 h-3" />
+                      Coming Soon
+                    </Badge>
                   </CardContent>
                 </Card>
-              </Link>
-            ))}
+              ) : (
+                <Link key={course.id} href={`/learn/${course.id}`}>
+                  <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-learn-course-${course.id}`}>
+                    <CardContent className="p-5 flex items-center gap-4">
+                      <span className="text-3xl flex-shrink-0">{course.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate">{course.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">{course.description}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            )}
           </div>
         )}
       </div>
@@ -272,6 +289,12 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
             <Card data-testid={`card-learn-${currentCard.id}`}>
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="text-lg">{currentCard.title}</CardTitle>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <FileText className="w-3 h-3 text-primary/60" />
+                  <p className="text-xs text-muted-foreground">
+                    Click <span className="text-primary font-medium">+ Save</span> on any formula to add it to your cheat sheet
+                  </p>
+                </div>
               </CardHeader>
               <CardContent className="p-5 pt-0">
                 <RichContent content={currentCard.content} className="text-sm" onAddFormula={handleAddFormula} />

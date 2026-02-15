@@ -16,6 +16,7 @@ export const courses = pgTable("courses", {
   description: text("description").notNull(),
   icon: text("icon").notNull(),
   orderIndex: integer("order_index").notNull().default(0),
+  locked: boolean("locked").notNull().default(false),
 });
 
 export const topics = pgTable("topics", {
