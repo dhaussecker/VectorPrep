@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,6 +17,7 @@ import PracticePage from "@/pages/practice";
 import ProgressPage from "@/pages/progress";
 import AdminPage from "@/pages/admin";
 import CheatSheetPage from "@/pages/cheat-sheet";
+import DemoPage from "@/pages/demo";
 
 function Router() {
   return (
@@ -41,6 +42,11 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  if (location === "/demo") {
+    return <DemoPage />;
+  }
 
   if (isLoading) {
     return (

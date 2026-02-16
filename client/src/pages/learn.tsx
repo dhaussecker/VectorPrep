@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
@@ -150,8 +149,7 @@ function LearnTopicSelector({ courseId }: { courseId: string }) {
 function LearnSession({ courseId, topicId }: { courseId: string; topicId: string }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showQuickCheck, setShowQuickCheck] = useState(false);
-  const [quickCheckAnswer, setQuickCheckAnswer] = useState("");
-  const [quickCheckResult, setQuickCheckResult] = useState<"correct" | "incorrect" | null>(null);
+  const [quickCheckResult, setQuickCheckResult] = useState(false);
 
   const { data, isLoading } = useQuery<LearnData>({
     queryKey: ["/api/learn", topicId],
@@ -200,18 +198,11 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
     }
   };
 
-  const handleQuickCheckSubmit = () => {
-    if (!currentCard?.quickCheckAnswer) return;
-    const isCorrect = quickCheckAnswer.trim().toLowerCase() === currentCard.quickCheckAnswer.trim().toLowerCase();
-    setQuickCheckResult(isCorrect ? "correct" : "incorrect");
-  };
-
   const handleNext = () => {
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setShowQuickCheck(false);
-      setQuickCheckAnswer("");
-      setQuickCheckResult(null);
+      setQuickCheckResult(false);
     }
   };
 
@@ -219,8 +210,7 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setShowQuickCheck(false);
-      setQuickCheckAnswer("");
-      setQuickCheckResult(null);
+      setQuickCheckResult(false);
     }
   };
 
@@ -291,24 +281,13 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
                       <Card className="bg-muted/50 border-muted">
                         <CardContent className="p-4 space-y-3">
                           <p className="text-sm font-medium">{currentCard.quickCheck}</p>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={quickCheckAnswer}
-                              onChange={(e) => setQuickCheckAnswer(e.target.value)}
-                              placeholder="Your answer..."
-                              className="flex-1"
-                              onKeyDown={(e) => e.key === "Enter" && handleQuickCheckSubmit()}
-                              data-testid="input-quick-check"
-                            />
-                            <Button size="sm" onClick={handleQuickCheckSubmit} data-testid="button-submit-quick-check">
-                              Check
+                          {!quickCheckResult ? (
+                            <Button size="sm" variant="outline" onClick={() => setQuickCheckResult(true)} data-testid="button-see-answer">
+                              See Answer
                             </Button>
-                          </div>
-                          {quickCheckResult && (
-                            <div className={`text-sm font-medium ${quickCheckResult === "correct" ? "text-green-500" : "text-destructive"}`} data-testid="text-quick-check-result">
-                              {quickCheckResult === "correct"
-                                ? "Correct!"
-                                : `Incorrect. The answer is: ${currentCard.quickCheckAnswer}`}
+                          ) : (
+                            <div className="text-sm font-medium text-green-500" data-testid="text-quick-check-result">
+                              {currentCard.quickCheckAnswer}
                             </div>
                           )}
                         </CardContent>
@@ -359,56 +338,59 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
 }
 
 function ContentWithFormula({ content, formula }: { content: string; formula: string | null }) {
-  if (!formula) {
+  if (!formula || !formula.trim()) {
     return <RichContent content={content} className="text-sm" />;
   }
 
-  // Try to find the formula text within the content and highlight it in-place
-  // The formula may contain multiple lines — try matching each line
-  const formulaLines = formula.split("\n").map((l) => l.trim()).filter(Boolean);
+  const blueBox = "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 my-3";
+  const normContent = content.replace(/\r\n/g, "\n");
+  const normFormula = formula.trim().replace(/\r\n/g, "\n");
 
-  // Find the first formula line that appears in content
-  let splitIndex = -1;
-  let matchedFormula = "";
-  for (const line of formulaLines) {
-    const idx = content.indexOf(line);
-    if (idx !== -1) {
-      splitIndex = idx;
-      matchedFormula = line;
-      break;
-    }
-  }
-
-  // Also try matching the full formula block
-  const fullIdx = content.indexOf(formula);
-  if (fullIdx !== -1) {
-    splitIndex = fullIdx;
-    matchedFormula = formula;
-  }
-
-  if (splitIndex === -1) {
-    // Formula not found in content — show as separate blue box at bottom
+  // Case 1: Formula is an exact substring of content
+  const exactIdx = normContent.indexOf(normFormula);
+  if (exactIdx !== -1) {
+    const before = normContent.slice(0, exactIdx);
+    const formulaPart = normContent.slice(exactIdx, exactIdx + normFormula.length);
+    const after = normContent.slice(exactIdx + normFormula.length);
     return (
-      <>
-        <RichContent content={content} className="text-sm" />
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 p-4">
-          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-wide">Key Formula</p>
-          <RichContent content={formula} className="text-sm" />
-        </div>
-      </>
+      <div>
+        {before.trim() && <RichContent content={before} className="text-sm" />}
+        <div className={blueBox}><RichContent content={formulaPart} className="text-sm" /></div>
+        {after.trim() && <RichContent content={after} className="text-sm" />}
+      </div>
     );
   }
 
-  const before = content.substring(0, splitIndex);
-  const after = content.substring(splitIndex + matchedFormula.length);
+  // Case 2: Formula partially overlaps with content (e.g. formula = unique equation + steps from content)
+  // Try progressively shorter suffixes of the formula until one is found in the content
+  const formulaLines = normFormula.split("\n");
+  for (let i = 1; i < formulaLines.length; i++) {
+    const suffix = formulaLines.slice(i).join("\n").trim();
+    if (!suffix) continue;
+    const suffixIdx = normContent.indexOf(suffix);
+    if (suffixIdx !== -1) {
+      const uniquePart = formulaLines.slice(0, i).join("\n").trim();
+      const before = normContent.slice(0, suffixIdx);
+      const overlap = normContent.slice(suffixIdx, suffixIdx + suffix.length);
+      const after = normContent.slice(suffixIdx + suffix.length);
+      return (
+        <div>
+          {before.trim() && <RichContent content={before} className="text-sm" />}
+          <div className={blueBox}>
+            {uniquePart && <RichContent content={uniquePart} className="text-sm" />}
+            <RichContent content={overlap} className="text-sm" />
+          </div>
+          {after.trim() && <RichContent content={after} className="text-sm" />}
+        </div>
+      );
+    }
+  }
 
+  // Case 3: No overlap — show formula in blue box, then content below
   return (
-    <>
-      {before.trim() && <RichContent content={before} className="text-sm" />}
-      <div className="my-3 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-4 py-3">
-        <RichContent content={matchedFormula} className="text-sm" />
-      </div>
-      {after.trim() && <RichContent content={after} className="text-sm" />}
-    </>
+    <div>
+      <div className={blueBox}><RichContent content={normFormula} className="text-sm" /></div>
+      <RichContent content={normContent} className="text-sm" />
+    </div>
   );
 }

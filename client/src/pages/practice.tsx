@@ -1,11 +1,10 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ChevronLeft, RefreshCw, ArrowRight, Check, X, ClipboardCheck, Loader2, Lock, Eye } from "lucide-react";
+import { ChevronLeft, RefreshCw, ArrowRight, ClipboardCheck, Loader2, Lock, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -148,8 +147,6 @@ function PracticeTopicSelector({ courseId }: { courseId: string }) {
 }
 
 function PracticeSession({ courseId, topicId }: { courseId: string; topicId: string }) {
-  const [userAnswer, setUserAnswer] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
   const [gradeResult, setGradeResult] = useState<{ correct: boolean; correctAnswer: string; solutionSteps: string } | null>(null);
 
@@ -161,23 +158,6 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
     mutationFn: async (templateId?: string) => {
       const res = await apiRequest("POST", `/api/practice/${topicId}/generate`, { templateId });
       return res.json() as Promise<GeneratedQuestion>;
-    },
-  });
-
-  const gradeMutation = useMutation({
-    mutationFn: async ({ attemptId, answer }: { attemptId: string; answer: string }) => {
-      const res = await apiRequest("POST", `/api/practice/${topicId}/grade`, {
-        attemptId,
-        answer,
-      });
-      return res.json() as Promise<{ correct: boolean; correctAnswer: string; solutionSteps: string }>;
-    },
-    onSuccess: (result) => {
-      setGradeResult(result);
-      setSubmitted(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/progress/overview"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/practice", topicId, "info"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/courses", courseId, "topics"] });
     },
   });
 
@@ -213,14 +193,12 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
   });
 
   const handleGenerate = (templateId?: string) => {
-    setUserAnswer("");
-    setSubmitted(false);
     setShowAnswer(false);
     setGradeResult(null);
     generateMutation.mutate(templateId);
   };
 
-  // "Done" after viewing answer — mark as mastered then go to next question
+  // Mark as mastered after reviewing the answer, then go to next
   const handleDoneNext = (templateId?: string) => {
     if (generateMutation.data && showAnswer) {
       markMasteredMutation.mutate(generateMutation.data.attemptId, {
@@ -229,14 +207,6 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
     } else {
       handleGenerate(templateId);
     }
-  };
-
-  const handleSubmit = () => {
-    if (!generateMutation.data || !userAnswer.trim()) return;
-    gradeMutation.mutate({
-      attemptId: generateMutation.data.attemptId,
-      answer: userAnswer.trim(),
-    });
   };
 
   const handleViewAnswer = () => {
@@ -308,65 +278,22 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
                 </CardContent>
               </Card>
 
-              {!submitted && !showAnswer && (
-                <Card>
-                  <CardContent className="p-5 space-y-3">
-                    <label className="text-sm font-medium">Your Answer</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={userAnswer}
-                        onChange={(e) => setUserAnswer(e.target.value)}
-                        placeholder="Enter your answer..."
-                        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                        data-testid="input-answer"
-                      />
-                      <Button
-                        onClick={handleSubmit}
-                        disabled={!userAnswer.trim() || gradeMutation.isPending}
-                        data-testid="button-submit-answer"
-                      >
-                        {gradeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit"}
-                      </Button>
-                    </div>
-                    <div className="flex items-center pt-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground text-xs"
-                        onClick={handleViewAnswer}
-                        disabled={viewAnswerMutation.isPending}
-                      >
-                        <Eye className="w-3 h-3" />
-                        {viewAnswerMutation.isPending ? "Loading..." : "View Answer"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+              {!showAnswer && !gradeResult && (
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleViewAnswer}
+                    disabled={viewAnswerMutation.isPending}
+                    data-testid="button-view-answer"
+                  >
+                    {viewAnswerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                    {viewAnswerMutation.isPending ? "Loading..." : "View Answer"}
+                  </Button>
+                </div>
               )}
 
               {gradeResult && (
-                <Card className={showAnswer ? "border-muted" : gradeResult.correct ? "border-green-500/30" : "border-destructive/30"} data-testid="card-result">
+                <Card className="border-muted" data-testid="card-result">
                   <CardContent className="p-5 space-y-4">
-                    {!showAnswer && (
-                      <div className="flex items-center gap-2">
-                        {gradeResult.correct ? (
-                          <>
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
-                              <Check className="w-4 h-4 text-green-500" />
-                            </div>
-                            <span className="font-semibold text-green-500" data-testid="text-result-status">Correct!</span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10">
-                              <X className="w-4 h-4 text-destructive" />
-                            </div>
-                            <span className="font-semibold text-destructive" data-testid="text-result-status">Incorrect</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-
                     <div className="space-y-2">
                       <p className="text-sm">
                         <span className="text-muted-foreground">Answer: </span>
@@ -383,16 +310,16 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
 
                     <div className="flex items-center gap-2 pt-2 flex-wrap">
                       <Button
-                        onClick={() => showAnswer ? handleDoneNext() : handleGenerate()}
+                        onClick={() => handleDoneNext()}
                         disabled={markMasteredMutation.isPending}
-                        data-testid="button-try-another"
+                        data-testid="button-next-question"
                       >
                         {markMasteredMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                        {showAnswer ? "Done — Next Question" : "Try Another"}
+                        Next Question
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => showAnswer ? handleDoneNext(question.templateId) : handleGenerate(question.templateId)}
+                        onClick={() => handleDoneNext(question.templateId)}
                         disabled={markMasteredMutation.isPending}
                         data-testid="button-regenerate-similar"
                       >

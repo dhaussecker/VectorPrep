@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import express, { type Express, type Request } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
@@ -601,6 +601,30 @@ export async function registerRoutes(
     }
   });
 
+  // ============ INVITE CODES ============
+
+  app.get("/api/admin/invite-codes", requireAdmin, async (_req, res) => {
+    try {
+      const codes = await storage.listInviteCodes();
+      res.json(codes);
+    } catch (err) {
+      console.error("Error fetching invite codes:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/invite-codes", requireAdmin, async (req, res) => {
+    try {
+      const { count } = req.body;
+      const num = Math.min(Math.max(parseInt(count) || 1, 1), 100);
+      const codes = await storage.createInviteCodes(num);
+      res.json(codes);
+    } catch (err) {
+      console.error("Error creating invite codes:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // ============ ADMIN UPLOAD ============
 
   app.post("/api/admin/upload", requireAdmin, upload.single("image"), (req, res) => {
@@ -610,6 +634,9 @@ export async function registerRoutes(
     const url = `/uploads/${req.file.filename}`;
     res.json({ url });
   });
+
+  // Serve uploaded files
+  app.use("/uploads", express.static(uploadsDir));
 
   // ============ ADMIN ROUTES ============
 

@@ -5,9 +5,18 @@ import type { Express } from "express";
 export function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, displayName } = req.body;
+      const { email, password, displayName, inviteCode } = req.body;
       if (!email || !password || !displayName) {
         return res.status(400).json({ message: "All fields are required" });
+      }
+
+      if (!inviteCode) {
+        return res.status(400).json({ message: "Invite code is required" });
+      }
+
+      const invite = await storage.getInviteCode(inviteCode.trim().toUpperCase());
+      if (!invite || invite.used) {
+        return res.status(400).json({ message: "Invalid or already used invite code" });
       }
 
       const existing = await storage.getUserByEmail(email);
@@ -30,6 +39,8 @@ export function setupAuth(app: Express) {
         email,
         displayName,
       });
+
+      await storage.redeemInviteCode(invite.code, user.id);
 
       return res.json(user);
     } catch (err) {

@@ -3,7 +3,7 @@ import { db } from "./db";
 import {
   users, courses, topics, learnCards, questionTemplates,
   userLearnProgress, userPracticeProgress, practiceAttempts,
-  cheatSheetEntries,
+  cheatSheetEntries, inviteCodes,
   type User, type InsertUser,
   type Course, type InsertCourse,
   type Topic, type InsertTopic,
@@ -12,6 +12,7 @@ import {
   type UserLearnProgress, type InsertUserLearnProgress,
   type UserPracticeProgress, type InsertUserPracticeProgress,
   type CheatSheetEntry, type InsertCheatSheetEntry,
+  type InviteCode,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -62,6 +63,11 @@ export interface IStorage {
   addCheatSheetEntry(entry: InsertCheatSheetEntry): Promise<CheatSheetEntry>;
   updateCheatSheetEntry(id: string, userId: string, formula: string): Promise<CheatSheetEntry | null>;
   deleteCheatSheetEntry(id: string, userId: string): Promise<boolean>;
+
+  getInviteCode(code: string): Promise<InviteCode | undefined>;
+  redeemInviteCode(code: string, userId: string): Promise<void>;
+  listInviteCodes(): Promise<InviteCode[]>;
+  createInviteCodes(count: number): Promise<InviteCode[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -284,6 +290,37 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(cheatSheetEntries.id, id), eq(cheatSheetEntries.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async getInviteCode(code: string): Promise<InviteCode | undefined> {
+    const [row] = await db.select().from(inviteCodes).where(eq(inviteCodes.code, code));
+    return row;
+  }
+
+  async redeemInviteCode(code: string, userId: string): Promise<void> {
+    await db.update(inviteCodes)
+      .set({ used: true, usedBy: userId })
+      .where(eq(inviteCodes.code, code));
+  }
+
+  async listInviteCodes(): Promise<InviteCode[]> {
+    return db.select().from(inviteCodes).orderBy(inviteCodes.createdAt);
+  }
+
+  async createInviteCodes(count: number): Promise<InviteCode[]> {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const codes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      let code = "";
+      for (let j = 0; j < 8; j++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      codes.push(code);
+    }
+    const rows = await db.insert(inviteCodes)
+      .values(codes.map((code) => ({ code })))
+      .returning();
+    return rows;
   }
 }
 

@@ -9,7 +9,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string, inviteCode: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async ({ email, password, displayName }: { email: string; password: string; displayName: string }) => {
-      await apiRequest("POST", "/api/auth/register", { email, password, displayName });
+    mutationFn: async ({ email, password, displayName, inviteCode }: { email: string; password: string; displayName: string; inviteCode: string }) => {
+      await apiRequest("POST", "/api/auth/register", { email, password, displayName, inviteCode });
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
     },
@@ -74,8 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loginMutation.mutateAsync({ email, password });
   }, [loginMutation]);
 
-  const register = useCallback(async (email: string, password: string, displayName: string) => {
-    await registerMutation.mutateAsync({ email, password, displayName });
+  const register = useCallback(async (email: string, password: string, displayName: string, inviteCode: string) => {
+    await registerMutation.mutateAsync({ email, password, displayName, inviteCode });
   }, [registerMutation]);
 
   const logout = useCallback(async () => {

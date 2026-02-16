@@ -74,6 +74,14 @@ export const cheatSheetEntries = pgTable("cheat_sheet_entries", {
   orderIndex: integer("order_index").notNull().default(0),
 });
 
+export const inviteCodes = pgTable("invite_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  used: boolean("used").notNull().default(false),
+  usedBy: text("used_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const practiceAttempts = pgTable("practice_attempts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -93,11 +101,14 @@ export const insertUserLearnProgressSchema = createInsertSchema(userLearnProgres
 export const insertUserPracticeProgressSchema = createInsertSchema(userPracticeProgress).omit({ id: true });
 export const insertCheatSheetEntrySchema = createInsertSchema(cheatSheetEntries).omit({ id: true });
 export const insertPracticeAttemptSchema = createInsertSchema(practiceAttempts).omit({ id: true });
+export const insertInviteCodeSchema = createInsertSchema(inviteCodes).omit({ id: true });
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+export type InviteCode = typeof inviteCodes.$inferSelect;
 
 export const registerSchema = loginSchema.extend({
   displayName: z.string().min(1, "Display name is required"),

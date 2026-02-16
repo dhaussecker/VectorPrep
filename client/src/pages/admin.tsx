@@ -40,9 +40,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
   FolderOpen, Loader2, ImageIcon, Video, GraduationCap, FileText,
+  Copy, Ticket, Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { Topic, LearnCard, QuestionTemplate, Course } from "@shared/schema";
+import type { Topic, LearnCard, QuestionTemplate, Course, InviteCode } from "@shared/schema";
 
 const FORMULA_INSERTS = [
   { label: "Fraction", template: "\\frac{a}{b}", tooltip: "\\frac{a}{b}" },
@@ -265,6 +266,10 @@ export default function AdminPage() {
               <ClipboardCheck className="w-4 h-4 mr-1.5" />
               Question Templates
             </TabsTrigger>
+            <TabsTrigger value="invite-codes" data-testid="tab-invite-codes">
+              <Ticket className="w-4 h-4 mr-1.5" />
+              Invite Codes
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="courses">
@@ -278,6 +283,9 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="templates">
             <TemplatesManager />
+          </TabsContent>
+          <TabsContent value="invite-codes">
+            <InviteCodesManager />
           </TabsContent>
         </Tabs>
       </div>
@@ -1275,5 +1283,118 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function InviteCodesManager() {
+  const { toast } = useToast();
+  const [generateCount, setGenerateCount] = useState("5");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const { data: codes, isLoading } = useQuery<InviteCode[]>({
+    queryKey: ["/api/admin/invite-codes"],
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async (count: number) => {
+      const res = await apiRequest("POST", "/api/admin/invite-codes", { count });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/invite-codes"] });
+      toast({ title: "Invite codes generated" });
+    },
+  });
+
+  const handleCopy = (code: string, id: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  if (isLoading) {
+    return <div className="space-y-3 mt-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
+  }
+
+  const available = codes?.filter((c) => !c.used) ?? [];
+  const used = codes?.filter((c) => c.used) ?? [];
+
+  return (
+    <div className="space-y-4 mt-4">
+      <Card>
+        <CardContent className="p-4 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Label>Generate</Label>
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={generateCount}
+              onChange={(e) => setGenerateCount(e.target.value)}
+              className="w-20"
+            />
+            <span className="text-sm text-muted-foreground">codes</span>
+          </div>
+          <Button
+            onClick={() => generateMutation.mutate(parseInt(generateCount) || 5)}
+            disabled={generateMutation.isPending}
+          >
+            {generateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Generate
+          </Button>
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span>{available.length} available</span>
+            <span>{used.length} used</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {available.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Available Codes</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {available.map((code) => (
+                <div key={code.id} className="flex items-center justify-between px-4 py-2.5">
+                  <code className="font-mono text-sm tracking-wider">{code.code}</code>
+                  <Button variant="ghost" size="sm" onClick={() => handleCopy(code.code, code.id)}>
+                    {copiedId === code.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {used.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Used Codes</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {used.map((code) => (
+                <div key={code.id} className="flex items-center justify-between px-4 py-2.5">
+                  <code className="font-mono text-sm tracking-wider text-muted-foreground line-through">{code.code}</code>
+                  <span className="text-xs text-muted-foreground">{code.usedBy ? `Used by ${code.usedBy.slice(0, 8)}...` : "Used"}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {codes?.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Ticket className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No invite codes yet. Generate some above.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
