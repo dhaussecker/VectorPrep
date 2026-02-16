@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen, FileText, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,8 @@ import { Progress } from "@/components/ui/progress";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { RichContent } from "@/components/rich-content";
 import type { Topic, LearnCard, Course } from "@shared/schema";
 
@@ -153,20 +152,9 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
   const [showQuickCheck, setShowQuickCheck] = useState(false);
   const [quickCheckAnswer, setQuickCheckAnswer] = useState("");
   const [quickCheckResult, setQuickCheckResult] = useState<"correct" | "incorrect" | null>(null);
-  const { toast } = useToast();
 
   const { data, isLoading } = useQuery<LearnData>({
     queryKey: ["/api/learn", topicId],
-  });
-
-  const addToCheatSheetMutation = useMutation({
-    mutationFn: async ({ formula, label }: { formula: string; label: string }) => {
-      await apiRequest("POST", "/api/cheatsheet", { topicId, formula, label });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cheatsheet"] });
-      toast({ title: "Added to cheat sheet" });
-    },
   });
 
   const markCompleteMutation = useMutation({
@@ -181,12 +169,6 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
   });
 
   const currentCard = data?.cards[currentIndex];
-
-  const handleAddFormula = useCallback((formula: string) => {
-    if (currentCard) {
-      addToCheatSheetMutation.mutate({ formula: `$$${formula}$$`, label: currentCard.title });
-    }
-  }, [currentCard, addToCheatSheetMutation]);
 
   if (isLoading) {
     return (
@@ -289,15 +271,9 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
             <Card data-testid={`card-learn-${currentCard.id}`}>
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="text-lg">{currentCard.title}</CardTitle>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <FileText className="w-3 h-3 text-primary/60" />
-                  <p className="text-xs text-muted-foreground">
-                    Click <span className="text-primary font-medium">+ Save</span> on any formula to add it to your cheat sheet
-                  </p>
-                </div>
               </CardHeader>
               <CardContent className="p-5 pt-0">
-                <RichContent content={currentCard.content} className="text-sm" onAddFormula={handleAddFormula} />
+                <ContentWithFormula content={currentCard.content} formula={currentCard.formula} />
 
                 {currentCard.quickCheck && (
                   <div className="mt-5">
@@ -379,5 +355,60 @@ function LearnSession({ courseId, topicId }: { courseId: string; topicId: string
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ContentWithFormula({ content, formula }: { content: string; formula: string | null }) {
+  if (!formula) {
+    return <RichContent content={content} className="text-sm" />;
+  }
+
+  // Try to find the formula text within the content and highlight it in-place
+  // The formula may contain multiple lines — try matching each line
+  const formulaLines = formula.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Find the first formula line that appears in content
+  let splitIndex = -1;
+  let matchedFormula = "";
+  for (const line of formulaLines) {
+    const idx = content.indexOf(line);
+    if (idx !== -1) {
+      splitIndex = idx;
+      matchedFormula = line;
+      break;
+    }
+  }
+
+  // Also try matching the full formula block
+  const fullIdx = content.indexOf(formula);
+  if (fullIdx !== -1) {
+    splitIndex = fullIdx;
+    matchedFormula = formula;
+  }
+
+  if (splitIndex === -1) {
+    // Formula not found in content — show as separate blue box at bottom
+    return (
+      <>
+        <RichContent content={content} className="text-sm" />
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 p-4">
+          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-wide">Key Formula</p>
+          <RichContent content={formula} className="text-sm" />
+        </div>
+      </>
+    );
+  }
+
+  const before = content.substring(0, splitIndex);
+  const after = content.substring(splitIndex + matchedFormula.length);
+
+  return (
+    <>
+      {before.trim() && <RichContent content={before} className="text-sm" />}
+      <div className="my-3 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-4 py-3">
+        <RichContent content={matchedFormula} className="text-sm" />
+      </div>
+      {after.trim() && <RichContent content={after} className="text-sm" />}
+    </>
   );
 }

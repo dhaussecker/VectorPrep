@@ -65,7 +65,7 @@ export default function AuthPage() {
             <div className="flex items-center justify-center w-12 h-12 rounded-md bg-primary">
               <GraduationCap className="w-7 h-7 text-primary-foreground" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">PrepEngine</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Vector Prep</h1>
           </div>
           <p className="text-lg text-muted-foreground leading-relaxed">
             Master your first-year engineering courses with interactive learn cards and adaptive practice questions.
@@ -84,7 +84,7 @@ export default function AuthPage() {
               <div className="flex items-center justify-center w-9 h-9 rounded-md bg-primary">
                 <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">PrepEngine</span>
+              <span className="text-xl font-bold">Vector Prep</span>
             </div>
             <CardTitle className="text-xl">{isLogin ? "Welcome back" : "Create account"}</CardTitle>
             <CardDescription>

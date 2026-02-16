@@ -43,7 +43,7 @@ export function AppSidebar() {
             <GraduationCap className="w-5 h-5 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold" data-testid="text-app-name">PrepEngine</span>
+            <span className="text-sm font-semibold" data-testid="text-app-name">Vector Prep</span>
             <span className="text-xs text-muted-foreground">Exam Prep</span>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { BookOpen, ClipboardCheck, TrendingUp, ArrowRight, Sparkles, ChevronDown, Lock } from "lucide-react";
+import { BookOpen, ClipboardCheck, TrendingUp, ArrowRight, Sparkles, ChevronDown, Lock, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -68,6 +68,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+            <ConfidenceCard percent={overallPercent} isLoading={isLoading} />
             <StatCard
               icon={<TrendingUp className="w-4 h-4" />}
               label="Overall Progress"
@@ -78,12 +79,6 @@ export default function Dashboard() {
               icon={<BookOpen className="w-4 h-4" />}
               label="Topics Available"
               value={String(accessibleTopicCount)}
-              isLoading={isLoading}
-            />
-            <StatCard
-              icon={<ClipboardCheck className="w-4 h-4" />}
-              label="Completion Status"
-              value={overallPercent >= 100 ? "Complete" : "In Progress"}
               isLoading={isLoading}
             />
           </div>
@@ -244,6 +239,37 @@ function CourseSection({ group }: { group: CourseGroup }) {
         </CollapsibleContent>
       </Card>
     </Collapsible>
+  );
+}
+
+function getConfidenceLevel(percent: number): { label: string; color: string; bg: string; border: string } {
+  if (percent >= 85) return { label: "Exam Ready", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10", border: "border-green-500/30" };
+  if (percent >= 65) return { label: "Almost There", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30" };
+  if (percent >= 40) return { label: "Building Up", color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30" };
+  if (percent >= 15) return { label: "Getting Started", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30" };
+  return { label: "Not Started", color: "text-red-600 dark:text-red-400", bg: "bg-red-500/10", border: "border-red-500/30" };
+}
+
+function ConfidenceCard({ percent, isLoading }: { percent: number; isLoading: boolean }) {
+  const level = getConfidenceLevel(percent);
+  return (
+    <Card className={`${level.border} border`}>
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className={`flex items-center justify-center w-9 h-9 rounded-md ${level.bg} flex-shrink-0`}>
+          <ShieldCheck className={`w-4 h-4 ${level.color}`} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Test Confidence</p>
+          {isLoading ? (
+            <Skeleton className="h-5 w-24 mt-1" />
+          ) : (
+            <p className={`text-lg font-semibold ${level.color}`} data-testid="text-confidence-level">
+              {level.label}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

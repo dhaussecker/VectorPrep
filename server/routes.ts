@@ -93,56 +93,131 @@ function generateFromTemplate(
   template: { templateText: string; solutionTemplate: string; parameters: any },
 ) {
   const params: Record<string, number> = {};
-  const paramDefs = template.parameters as Record<string, { min: number; max: number }>;
+  const paramDefs = template.parameters as Record<string, any>;
 
-  for (const [key, def] of Object.entries(paramDefs)) {
-    params[key] = Math.floor(Math.random() * (def.max - def.min + 1)) + def.min;
+  // Support fixed answer in parameters
+  const fixedAnswer = paramDefs?._answer;
+  const cleanDefs = { ...paramDefs };
+  delete cleanDefs._answer;
+
+  for (const [key, def] of Object.entries(cleanDefs)) {
+    if (def && typeof def === "object" && "min" in def && "max" in def) {
+      params[key] = Math.floor(Math.random() * (def.max - def.min + 1)) + def.min;
+    }
   }
 
   let questionText = template.templateText;
   let solutionText = template.solutionTemplate;
 
   const computed: Record<string, number | string> = { ...params };
+  const tpl = template.templateText;
 
-  if (params.a !== undefined && params.n !== undefined) {
-    computed.answer = params.a * params.n;
+  // Distance between two 3D points
+  if (params.x1 !== undefined && params.y1 !== undefined && params.z1 !== undefined &&
+      params.x2 !== undefined && params.y2 !== undefined && params.z2 !== undefined) {
+    const dx = params.x2 - params.x1;
+    const dy = params.y2 - params.y1;
+    const dz = params.z2 - params.z1;
+    computed.dx = dx; computed.dy = dy; computed.dz = dz;
+    computed.dx2 = dx * dx; computed.dy2 = dy * dy; computed.dz2 = dz * dz;
+    computed.sum = dx * dx + dy * dy + dz * dz;
+    if (tpl.includes("distance") && !tpl.includes("plane")) {
+      computed.answer = Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz) * 100) / 100;
+    }
+    // Point to plane: Ax0+By0+Cz0-D / sqrt(A²+B²+C²)
+    if (tpl.includes("plane") && params.pa !== undefined && params.pb !== undefined && params.pc !== undefined && params.pd !== undefined) {
+      const num = Math.abs(params.pa * params.x1 + params.pb * params.y1 + params.pc * params.z1 - params.pd);
+      const den = Math.sqrt(params.pa * params.pa + params.pb * params.pb + params.pc * params.pc);
+      computed.num = num;
+      computed.den = Math.round(den * 100) / 100;
+      computed.answer = Math.round((num / den) * 100) / 100;
+    }
+  }
+
+  // 3D dot product
+  if (params.a1 !== undefined && params.a2 !== undefined && params.a3 !== undefined &&
+      params.b1 !== undefined && params.b2 !== undefined && params.b3 !== undefined) {
+    computed.dot = params.a1 * params.b1 + params.a2 * params.b2 + params.a3 * params.b3;
+    computed.magA = Math.round(Math.sqrt(params.a1 ** 2 + params.a2 ** 2 + params.a3 ** 2) * 100) / 100;
+    computed.magB = Math.round(Math.sqrt(params.b1 ** 2 + params.b2 ** 2 + params.b3 ** 2) * 100) / 100;
+    if (tpl.includes("angle")) {
+      const cosTheta = (computed.dot as number) / ((computed.magA as number) * (computed.magB as number));
+      computed.answer = Math.round(Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180 / Math.PI * 100) / 100;
+    } else if (tpl.includes("dot product")) {
+      computed.answer = computed.dot;
+    }
+  }
+  // 2D dot product (existing)
+  else if (params.a1 !== undefined && params.a2 !== undefined && params.b1 !== undefined && params.b2 !== undefined) {
+    computed.p1 = params.a1 * params.b1;
+    computed.p2 = params.a2 * params.b2;
+    computed.answer = params.a1 * params.b1 + params.a2 * params.b2;
+  }
+
+  // Ellipse area: πab
+  if (tpl.includes("ellipse") && params.a !== undefined && params.b !== undefined) {
+    computed.answer = Math.round(params.a * params.b * Math.PI * 100) / 100;
+  }
+  // Point to plane distance (standalone - pa,pb,pc,pd,px,py,pz)
+  else if (tpl.includes("plane") && params.pa !== undefined && params.pb !== undefined && params.pc !== undefined && params.pd !== undefined &&
+      params.px !== undefined && params.py !== undefined && params.pz !== undefined) {
+    const num = Math.abs(params.pa * params.px + params.pb * params.py + params.pc * params.pz - params.pd);
+    const den = Math.sqrt(params.pa * params.pa + params.pb * params.pb + params.pc * params.pc);
+    computed.num = num;
+    computed.den = Math.round(den * 100) / 100;
+    computed.answer = Math.round((num / den) * 100) / 100;
+  }
+  // Find f(x) from antiderivative: d/dx(c*x^n) = c*n*x^(n-1)
+  else if (tpl.includes("f(x)") && params.c !== undefined && params.n !== undefined) {
+    computed.coeff = params.c * params.n;
     computed.nm1 = params.n - 1;
-    if (template.templateText.includes("derivative")) {
+    computed.answer = `${params.c * params.n}x^${params.n - 1}`;
+  }
+  // Accumulation function minimum: answer is the value where f changes sign
+  else if (tpl.includes("minimum") && params.a !== undefined && Object.keys(params).length === 1) {
+    computed.answer = params.a;
+  }
+  // FTC chain rule: F(x) = ∫₀^(kx) sin(t²)dt → F'(0) = sin(0)*k = 0
+  else if (tpl.includes("F'(0)") || tpl.includes("F′(0)")) {
+    if (params.k !== undefined) {
+      computed.answer = 0;
+    }
+  }
+
+  if (params.a !== undefined && params.n !== undefined && !tpl.includes("f(x)") && !tpl.includes("F'(0)")) {
+    computed.answer = computed.answer ?? params.a * params.n;
+    computed.nm1 = params.n - 1;
+    if (tpl.includes("derivative")) {
       computed.answer = `${params.a * params.n}`;
     }
   }
-  if (params.a !== undefined && params.b !== undefined) {
-    if (template.templateText.includes("integral")) {
+  if (params.a !== undefined && params.b !== undefined && computed.answer === undefined) {
+    if (tpl.includes("integral")) {
       computed.answer = (params.a * params.b * params.b) / 2;
-    } else if (template.templateText.includes("magnitude")) {
+    } else if (tpl.includes("magnitude")) {
       computed.a2 = params.a * params.a;
       computed.b2 = params.b * params.b;
       computed.answer = Math.round(Math.sqrt(params.a * params.a + params.b * params.b) * 100) / 100;
     }
   }
-  if (params.a2 !== undefined && params.a !== undefined && params.b !== undefined) {
-    if (template.templateText.includes("limit")) {
-      computed.answer = params.a2 * params.a + params.b;
+  if (params.a2 !== undefined && params.a !== undefined && params.b !== undefined && params.a3 === undefined) {
+    if (tpl.includes("limit")) {
+      computed.answer = (params.a2 as number) * params.a + params.b;
     }
   }
   if (params.m !== undefined && params.f !== undefined) {
     computed.answer = Math.round((params.f / params.m) * 100) / 100;
   }
-  if (params.a !== undefined && params.t !== undefined && template.templateText.includes("velocity")) {
+  if (params.a !== undefined && params.t !== undefined && tpl.includes("velocity")) {
     computed.answer = params.a * params.t;
   }
-  if (params.a1 !== undefined && params.a2 !== undefined && params.b1 !== undefined && params.b2 !== undefined) {
-    computed.p1 = params.a1 * params.b1;
-    computed.p2 = params.a2 * params.b2;
-    computed.answer = params.a1 * params.b1 + params.a2 * params.b2;
-  }
-  if (params.p !== undefined && params.n !== undefined && template.templateText.includes("mass number")) {
+  if (params.p !== undefined && params.n !== undefined && tpl.includes("mass number")) {
     computed.answer = params.p + params.n;
   }
   if (params.g !== undefined && params.mm !== undefined) {
     computed.answer = Math.round((params.g / params.mm) * 100) / 100;
   }
-  if (params.n !== undefined && params.a !== undefined && template.templateText.includes("output")) {
+  if (params.n !== undefined && params.a !== undefined && tpl.includes("output")) {
     computed.answer = params.n * params.a;
   }
 
@@ -152,10 +227,13 @@ function generateFromTemplate(
     solutionText = solutionText.replace(regex, String(val));
   }
 
+  // Use fixedAnswer for templates with no dynamic computation
+  const finalAnswer = computed.answer ?? fixedAnswer ?? "";
+
   return {
     questionText,
     solutionSteps: solutionText,
-    correctAnswer: String(computed.answer ?? ""),
+    correctAnswer: String(finalAnswer),
     parameters: params,
   };
 }
@@ -223,16 +301,41 @@ export async function registerRoutes(
       const sections = await Promise.all(
         allTopics.map(async (topic) => {
           const cards = await storage.getLearnCardsByTopic(topic.id);
-          const presetFormulas = cards
-            .filter((c) => c.formula)
-            .map((c) => ({ id: c.id, title: c.title, formula: c.formula!, source: "preset" as const }));
+          const topicUserEntries = userEntries.filter((e) => e.topicId === topic.id);
 
-          const userFormulas = userEntries
-            .filter((e) => e.topicId === topic.id)
-            .map((e) => ({ id: e.id, title: e.label, formula: e.formula, source: "user" as const }));
+          // Group formulas by card (skill)
+          const groups: { cardId: string; cardTitle: string; formulas: { id: string; formula: string; source: "preset" | "user" }[] }[] = [];
 
-          const formulas = [...presetFormulas, ...userFormulas];
-          return { topic, formulas };
+          for (const card of cards) {
+            const cardFormulas: { id: string; formula: string; source: "preset" | "user" }[] = [];
+
+            // Include formulas from the card's formula field
+            if (card.formula) {
+              cardFormulas.push({ id: `preset-${card.id}`, formula: card.formula, source: "preset" });
+            }
+
+            // User formulas added from this card (label matches card title)
+            const matching = topicUserEntries.filter((e) => e.label === card.title);
+            for (const e of matching) {
+              cardFormulas.push({ id: e.id, formula: e.formula, source: "user" });
+            }
+            if (cardFormulas.length > 0) {
+              groups.push({ cardId: card.id, cardTitle: card.title, formulas: cardFormulas });
+            }
+          }
+
+          // Orphan user formulas (label doesn't match any card title)
+          const cardTitles = new Set(cards.map((c) => c.title));
+          const orphans = topicUserEntries.filter((e) => !cardTitles.has(e.label));
+          if (orphans.length > 0) {
+            groups.push({
+              cardId: "custom",
+              cardTitle: "Custom Formulas",
+              formulas: orphans.map((e) => ({ id: e.id, formula: e.formula, source: "user" as const })),
+            });
+          }
+
+          return { topic, groups };
         })
       );
       res.json(sections);
@@ -259,6 +362,24 @@ export async function registerRoutes(
       res.json(entry);
     } catch (err) {
       console.error("Error adding cheat sheet entry:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/cheatsheet/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { formula } = req.body;
+      if (!formula) {
+        return res.status(400).json({ message: "formula is required" });
+      }
+      const updated = await storage.updateCheatSheetEntry(req.params.id, user.id, formula);
+      if (!updated) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating cheat sheet entry:", err);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -423,15 +544,34 @@ export async function registerRoutes(
     try {
       const user = req.user as User;
       const { topicId } = req.params;
-      const { attemptId, answer } = req.body;
+      const { attemptId, answer, viewOnly, markMastered } = req.body;
 
-      if (!attemptId || answer === undefined) {
+      if (!attemptId) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
       const attempt = await storage.getPracticeAttempt(attemptId);
       if (!attempt) return res.status(404).json({ message: "Attempt not found" });
       if (attempt.userId !== user.id) return res.status(403).json({ message: "Forbidden" });
+
+      // View answer only — return solution without recording
+      if (viewOnly) {
+        return res.json({
+          correct: false,
+          correctAnswer: attempt.correctAnswer,
+          solutionSteps: attempt.solutionSteps,
+        });
+      }
+
+      // Mark mastered — user reviewed the answer and clicked "Done"
+      if (markMastered) {
+        await storage.recordPracticeAttempt(user.id, attempt.templateId, topicId, true);
+        return res.json({
+          correct: true,
+          correctAnswer: attempt.correctAnswer,
+          solutionSteps: attempt.solutionSteps,
+        });
+      }
 
       const template = await storage.getQuestionTemplate(attempt.templateId);
 
@@ -473,6 +613,59 @@ export async function registerRoutes(
 
   // ============ ADMIN ROUTES ============
 
+  // --- Courses ---
+
+  app.get("/api/admin/courses", requireAdmin, async (_req, res) => {
+    try {
+      const allCourses = await storage.getCourses();
+      res.json(allCourses);
+    } catch (err) {
+      console.error("Error fetching courses:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/courses", requireAdmin, async (req, res) => {
+    try {
+      const { name, description, icon, orderIndex, locked } = req.body;
+      if (!name || !description) {
+        return res.status(400).json({ message: "Name and description are required" });
+      }
+      const course = await storage.createCourse({
+        name, description, icon: icon || "📚", orderIndex: orderIndex ?? 0, locked: locked ?? false,
+      });
+      res.json(course);
+    } catch (err) {
+      console.error("Error creating course:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/courses/:id", requireAdmin, async (req, res) => {
+    try {
+      const { name, description, icon, orderIndex, locked } = req.body;
+      const course = await storage.updateCourse(req.params.id, {
+        name, description, icon, orderIndex, locked,
+      });
+      res.json(course);
+    } catch (err) {
+      console.error("Error updating course:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/admin/courses/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteCourse(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting course:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // --- Topics ---
+
   app.get("/api/admin/topics", requireAdmin, async (_req, res) => {
     try {
       const allTopics = await storage.getTopics();
@@ -485,11 +678,11 @@ export async function registerRoutes(
 
   app.post("/api/admin/topics", requireAdmin, async (req, res) => {
     try {
-      const { name, description, icon, orderIndex } = req.body;
+      const { name, description, icon, orderIndex, courseId } = req.body;
       if (!name || !description) {
         return res.status(400).json({ message: "Name and description are required" });
       }
-      const topic = await storage.createTopic({ name, description, icon: icon || "NEW", orderIndex: orderIndex ?? 0 });
+      const topic = await storage.createTopic({ name, description, icon: icon || "NEW", orderIndex: orderIndex ?? 0, courseId: courseId || undefined });
       res.json(topic);
     } catch (err) {
       console.error("Error creating topic:", err);

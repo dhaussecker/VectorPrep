@@ -194,6 +194,51 @@ $$D = \\frac{|ax_1 + by_1 + cz_1 - d|}{\\sqrt{a^2 + b^2 + c^2}}$$`,
     parameters: { a: { min: 1, max: 12 }, b: { min: 1, max: 12 } },
   });
 
+  // Q1: Distance between two points in R³
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the distance between $A({x1}, {y1}, {z1})$ and $B({x2}, {y2}, {z2})$.",
+    solutionTemplate: "$\\vec{AB} = ({dx}, {dy}, {dz})$\n\n$|\\vec{AB}| = \\sqrt{{dx2} + {dy2} + {dz2}} = \\sqrt{{sum}} = {answer}$",
+    answerType: "numeric",
+    parameters: { x1: { min: 0, max: 4 }, y1: { min: -3, max: 3 }, z1: { min: 0, max: 4 }, x2: { min: 0, max: 5 }, y2: { min: -2, max: 4 }, z2: { min: -3, max: 3 } },
+  });
+
+  // Q2: Angle between two vectors (3D)
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the angle (in degrees) between vectors $\\vec{u} = ({a1}, {a2}, {a3})$ and $\\vec{v} = ({b1}, {b2}, {b3})$.",
+    solutionTemplate: "$\\vec{u} \\cdot \\vec{v} = {dot}$\n\n$|\\vec{u}| = {magA}, \\quad |\\vec{v}| = {magB}$\n\n$\\theta = \\cos^{-1}\\left(\\frac{{dot}}{{magA} \\cdot {magB}}\\right) = {answer}°$",
+    answerType: "numeric",
+    parameters: { a1: { min: -3, max: 3 }, a2: { min: -3, max: 3 }, a3: { min: -3, max: 3 }, b1: { min: -3, max: 3 }, b2: { min: -3, max: 3 }, b3: { min: -3, max: 3 } },
+  });
+
+  // Q3: Area of triangle in R³ (fixed example — cross product is complex to parameterize)
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the area of triangle $ABC$ where $A(1,-1,2)$, $B(3,0,-1)$, $C(1,2,3)$.\n\nHint: Use $\\text{Area} = \\frac{1}{2}|\\vec{AB} \\times \\vec{AC}|$.",
+    solutionTemplate: "$\\vec{AB} = (2,1,-3)$, $\\vec{AC} = (0,3,1)$\n\n$\\vec{AB} \\times \\vec{AC} = (1 \\cdot 1 - (-3) \\cdot 3,\\; (-3) \\cdot 0 - 2 \\cdot 1,\\; 2 \\cdot 3 - 1 \\cdot 0) = (10, -2, 6)$\n\n$|\\vec{AB} \\times \\vec{AC}| = \\sqrt{100 + 4 + 36} = \\sqrt{140}$\n\nArea $= \\frac{\\sqrt{140}}{2} \\approx 5.92$",
+    answerType: "numeric",
+    parameters: { _answer: 5.92 },
+  });
+
+  // Q4: Plane equation (fixed — text answer)
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the scalar equation of the plane through $A(2,1,0)$, $B(0,2,1)$, $C(1,0,2)$.",
+    solutionTemplate: "$\\vec{AB} = (-2,1,1)$, $\\vec{AC} = (-1,-1,2)$\n\n$\\vec{n} = \\vec{AB} \\times \\vec{AC} = (3,3,3)$\n\nUsing point $A$: $3(x-2)+3(y-1)+3(z-0)=0$\n\nSimplify: $x + y + z = 3$",
+    answerType: "text",
+    parameters: { _answer: "x+y+z=3" },
+  });
+
+  // Q5: Distance from point to plane
+  await storage.createQuestionTemplate({
+    topicId: vectors.id,
+    templateText: "Find the distance from $P({px}, {py}, {pz})$ to the plane ${pa}x + {pb}y + {pc}z = {pd}$.",
+    solutionTemplate: "$d = \\frac{|{pa}({px}) + {pb}({py}) + {pc}({pz}) - {pd}|}{\\sqrt{{pa}^2 + {pb}^2 + {pc}^2}} = \\frac{{num}}{{den}} = {answer}$",
+    answerType: "numeric",
+    parameters: { pa: { min: 1, max: 4 }, pb: { min: -3, max: 3 }, pc: { min: 1, max: 4 }, pd: { min: 1, max: 10 }, px: { min: -2, max: 4 }, py: { min: -2, max: 4 }, pz: { min: -2, max: 4 } },
+  });
+
   // ─── Section 2: Integration Fundamentals ──────────────────────────
 
   const intFundamentals = await storage.createTopic({
@@ -334,6 +379,33 @@ $F(x) = \\ln(x)$, so $\\ln(e) - \\ln(1) = 1 - 0 = 1$`,
     solutionTemplate: "$\\int {a}x^2 \\, dx = \\frac{{a}x^3}{3}$\n\nEvaluate: $\\frac{{a} \\cdot {b}^3}{3} - \\frac{{a}}{3} = {answer}$",
     answerType: "numeric",
     parameters: { a: { min: 1, max: 4 }, b: { min: 2, max: 4 } },
+  });
+
+  // Q6: Accumulation function minimum (conceptual)
+  await storage.createQuestionTemplate({
+    topicId: intFundamentals.id,
+    templateText: "If $F(x) = \\int_0^x f(t) \\, dt$ and $f(x) < 0$ on $(0, {a})$ and $f(x) > 0$ for $x > {a}$, at what $x$ value does $F$ achieve its minimum?",
+    solutionTemplate: "Since $f < 0$ on $(0, {a})$, $F$ is **decreasing** on that interval.\n\nSince $f > 0$ for $x > {a}$, $F$ is **increasing** after $x = {a}$.\n\nThe minimum occurs where $f$ changes from negative to positive: $x = {answer}$.",
+    answerType: "numeric",
+    parameters: { a: { min: 1, max: 6 } },
+  });
+
+  // Q7: FTC + Chain Rule — F'(0)
+  await storage.createQuestionTemplate({
+    topicId: intFundamentals.id,
+    templateText: "If $F(x) = \\int_0^{{k}x} \\sin(t^2) \\, dt$, find $F'(0)$.",
+    solutionTemplate: "By FTC Part 1 with the chain rule:\n\n$F'(x) = \\sin(({k}x)^2) \\cdot {k}$\n\nAt $x = 0$: $F'(0) = {k} \\cdot \\sin(0) = {answer}$",
+    answerType: "numeric",
+    parameters: { k: { min: 2, max: 5 } },
+  });
+
+  // Q8: Find f(x) from antiderivative
+  await storage.createQuestionTemplate({
+    topicId: intFundamentals.id,
+    templateText: "If $\\int f(x) \\, dx = {c}x^{n} + C$, find $f(x)$.",
+    solutionTemplate: "Differentiate the antiderivative:\n\n$f(x) = \\frac{d}{dx}({c}x^{n}) = {answer}$",
+    answerType: "text",
+    parameters: { c: { min: 2, max: 8 }, n: { min: 2, max: 5 } },
   });
 
   // ─── Section 3: Integration Techniques ────────────────────────────
@@ -549,6 +621,42 @@ $$= \\frac{1}{2}\\ln|x-1| - \\frac{1}{2}\\ln|x+1| + C$$`,
     parameters: { a: { min: 1, max: 5 } },
   });
 
+  // Q9: u-Substitution (fixed — exact symbolic answer)
+  await storage.createQuestionTemplate({
+    topicId: intTechniques.id,
+    templateText: "Evaluate $\\int_0^1 x e^{x^2} \\, dx$ using substitution.",
+    solutionTemplate: "Let $u = x^2$, $du = 2x \\, dx$, so $x \\, dx = \\frac{du}{2}$\n\nWhen $x=0$: $u=0$. When $x=1$: $u=1$.\n\n$= \\frac{1}{2}\\int_0^1 e^u \\, du = \\frac{1}{2}(e^1 - e^0) = \\frac{e-1}{2} \\approx 0.86$",
+    answerType: "numeric",
+    parameters: { _answer: 0.86 },
+  });
+
+  // Q10: Integration by parts — x cos(kx)
+  await storage.createQuestionTemplate({
+    topicId: intTechniques.id,
+    templateText: "Find $\\int x \\cos({a}x) \\, dx$.",
+    solutionTemplate: "Let $u = x$, $dv = \\cos({a}x)dx$\n\n$du = dx$, $v = \\frac{1}{{a}}\\sin({a}x)$\n\n$= \\frac{x}{{a}}\\sin({a}x) - \\frac{1}{{a}}\\int \\sin({a}x)\\,dx$\n\n$= \\frac{x}{{a}}\\sin({a}x) + \\frac{1}{{a}^2}\\cos({a}x) + C$",
+    answerType: "text",
+    parameters: { a: { min: 2, max: 4 } },
+  });
+
+  // Q11: Partial fractions (fixed)
+  await storage.createQuestionTemplate({
+    topicId: intTechniques.id,
+    templateText: "Evaluate $\\int \\frac{x+4}{x^2+6x+8} \\, dx$.",
+    solutionTemplate: "Factor: $x^2+6x+8 = (x+2)(x+4)$\n\nDecompose: $\\frac{x+4}{(x+2)(x+4)} = \\frac{1}{x+2}$\n\n(The $(x+4)$ cancels!)\n\n$\\int \\frac{1}{x+2} \\, dx = \\ln|x+2| + C$",
+    answerType: "text",
+    parameters: { _answer: "ln|x+2|+C" },
+  });
+
+  // Q12: Ellipse area via trig sub
+  await storage.createQuestionTemplate({
+    topicId: intTechniques.id,
+    templateText: "Find the area of the ellipse $\\frac{x^2}{{a}^2} + \\frac{y^2}{{b}^2} = 1$ (where $a={a}$, $b={b}$).",
+    solutionTemplate: "The area of an ellipse is $\\pi a b$.\n\n$\\text{Area} = \\pi \\cdot {a} \\cdot {b} = {answer}$",
+    answerType: "numeric",
+    parameters: { a: { min: 2, max: 6 }, b: { min: 1, max: 5 } },
+  });
+
   // ─── Section 4: Approximations ────────────────────────────────────
 
   const approx = await storage.createTopic({
@@ -662,6 +770,24 @@ $$= 0.25[0 + 0.5 + 2 + 4.5 + 4] = 0.25(11) = 2.75$$
     parameters: { n: { min: 2, max: 6 }, b: { min: 2, max: 6 } },
   });
 
+  // Q13: Midpoint Rule with table
+  await storage.createQuestionTemplate({
+    topicId: approx.id,
+    templateText: "Given the table:\n\n| $x$ | 0 | 2 | 4 | 6 | 8 |\n|---|---|---|---|---|---|\n| $f(x)$ | 3 | 5 | 4 | 6 | 2 |\n\nUse the Midpoint Rule with $n = 2$ subintervals on $[0, 8]$ to approximate $\\int_0^8 f(x) \\, dx$.",
+    solutionTemplate: "$\\Delta x = \\frac{8 - 0}{2} = 4$\n\nMidpoints: $x = 2$ and $x = 6$\n\n$M_2 = 4[f(2) + f(6)] = 4(5 + 6) = 44$",
+    answerType: "numeric",
+    parameters: { _answer: 44 },
+  });
+
+  // Q14: Simpson's Rule with table
+  await storage.createQuestionTemplate({
+    topicId: approx.id,
+    templateText: "Given the table:\n\n| $x$ | 0 | 2 | 4 | 6 | 8 |\n|---|---|---|---|---|---|\n| $f(x)$ | 3 | 5 | 4 | 6 | 2 |\n\nUse Simpson's Rule with $n = 4$ to approximate $\\int_0^8 f(x) \\, dx$.",
+    solutionTemplate: "$\\Delta x = 2$\n\n$S_4 = \\frac{2}{3}[f(0) + 4f(2) + 2f(4) + 4f(6) + f(8)]$\n\n$= \\frac{2}{3}[3 + 20 + 8 + 24 + 2] = \\frac{2}{3}(57) = 38$",
+    answerType: "numeric",
+    parameters: { _answer: 38 },
+  });
+
   // ─── Calculus II Part 2 (Locked / Coming Soon) ──────────────────
 
   const calc2part2 = await storage.createCourse({
@@ -712,5 +838,74 @@ $$= 0.25[0 + 0.5 + 2 + 4.5 + 4] = 0.25(11) = 2.75$$
     orderIndex: 4,
   });
 
-  console.log("Database seeded with Calc 2 Part 1 & Part 2 content!");
+  // ─── Statics Part 1 (Locked / Coming Soon) ─────────────────────
+
+  const staticsPart1 = await storage.createCourse({
+    name: "Statics Part 1",
+    description: "Forces & Particle Equilibrium",
+    icon: "⚖️",
+    orderIndex: 2,
+    locked: true,
+  });
+
+  const s1Topics = [
+    { name: "Vector Operations", description: "Vector addition, subtraction, scalar multiplication, and unit vectors", icon: "➡️" },
+    { name: "Dot Product", description: "Scalar product, angle between vectors, and projections", icon: "·" },
+    { name: "Force Components", description: "Resolving forces into rectangular and arbitrary components", icon: "↗️" },
+    { name: "Free Body Diagrams", description: "Isolating bodies and identifying all applied and reactive forces", icon: "📋" },
+    { name: "2D Equilibrium", description: "Equilibrium of particles in two-dimensional force systems", icon: "⚖️" },
+    { name: "3D Equilibrium", description: "Equilibrium of particles in three-dimensional force systems", icon: "🧊" },
+  ];
+  for (let i = 0; i < s1Topics.length; i++) {
+    const t = s1Topics[i];
+    await storage.createTopic({ courseId: staticsPart1.id, name: t.name, description: t.description, icon: t.icon, orderIndex: i });
+  }
+
+  // ─── Statics Part 2 (Locked / Coming Soon) ─────────────────────
+
+  const staticsPart2 = await storage.createCourse({
+    name: "Statics Part 2",
+    description: "Moments & Rigid Body Equilibrium",
+    icon: "🔧",
+    orderIndex: 3,
+    locked: true,
+  });
+
+  const s2Topics = [
+    { name: "Moments", description: "Moment of a force about a point and moment arm calculations", icon: "🔄" },
+    { name: "Couples", description: "Couple moments, equivalent systems, and resultant couples", icon: "🔀" },
+    { name: "Rigid Bodies", description: "Rigid body equilibrium conditions and free body diagrams", icon: "🧱" },
+    { name: "Support Reactions", description: "Identifying and computing reactions at pins, rollers, and fixed supports", icon: "📌" },
+    { name: "Resultant Systems", description: "Simplifying force and couple systems to equivalent resultants", icon: "🎯" },
+    { name: "3D Moments", description: "Moments about axes and three-dimensional moment calculations", icon: "📐" },
+  ];
+  for (let i = 0; i < s2Topics.length; i++) {
+    const t = s2Topics[i];
+    await storage.createTopic({ courseId: staticsPart2.id, name: t.name, description: t.description, icon: t.icon, orderIndex: i });
+  }
+
+  // ─── Statics Part 3 (Locked / Coming Soon) ─────────────────────
+
+  const staticsPart3 = await storage.createCourse({
+    name: "Statics Part 3",
+    description: "Structures & Applied Equilibrium",
+    icon: "🏗️",
+    orderIndex: 4,
+    locked: true,
+  });
+
+  const s3Topics = [
+    { name: "Distributed Loads", description: "Uniform and varying distributed loads and their resultants", icon: "📊" },
+    { name: "Centroids", description: "Centroid location for areas, composite shapes, and lines", icon: "⊕" },
+    { name: "Trusses", description: "Method of joints and method of sections for truss analysis", icon: "🔺" },
+    { name: "Frames", description: "Analysis of frames and machines with multi-force members", icon: "🖼️" },
+    { name: "Friction", description: "Dry friction, wedges, belts, and impending motion problems", icon: "🛑" },
+    { name: "Multi-body Systems", description: "Equilibrium analysis of interconnected rigid body systems", icon: "🔗" },
+  ];
+  for (let i = 0; i < s3Topics.length; i++) {
+    const t = s3Topics[i];
+    await storage.createTopic({ courseId: staticsPart3.id, name: t.name, description: t.description, icon: t.icon, orderIndex: i });
+  }
+
+  console.log("Database seeded with all course content!");
 }

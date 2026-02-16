@@ -30,7 +30,8 @@
       "Bash(npm run build:*)",
       "Bash(git rm:*)",
       "Bash(DATABASE_URL=\"postgresql://postgres.zicpjbylqizukwtibjes:Launch2023%21Sigma2024%21@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" psql:*)",
-      "Bash(jobs:*)"
+      "Bash(jobs:*)",
+      "Bash(source:*)"
     ]
   }
 }

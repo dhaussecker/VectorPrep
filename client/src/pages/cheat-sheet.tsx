@@ -1,24 +1,29 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { FileText, X, ArrowLeft, Lock } from "lucide-react";
+import { FileText, ArrowLeft, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RichContent } from "@/components/rich-content";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import type { Topic, Course } from "@shared/schema";
 
-type CheatSheetFormula = {
+type FormulaEntry = {
   id: string;
-  title: string;
   formula: string;
   source: "preset" | "user";
 };
 
+type FormulaGroup = {
+  cardId: string;
+  cardTitle: string;
+  formulas: FormulaEntry[];
+};
+
 type CheatSheetSection = {
   topic: Topic;
-  formulas: CheatSheetFormula[];
+  groups: FormulaGroup[];
 };
 
 export default function CheatSheetPage() {
@@ -112,14 +117,7 @@ function CourseCheatSheet({ courseId }: { courseId: string }) {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/cheatsheet/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cheatsheet"] });
-    },
-  });
+  const hasAnyFormulas = sections?.some((s) => s.groups.length > 0);
 
   return (
     <div className="flex-1 overflow-auto">
@@ -133,7 +131,7 @@ function CourseCheatSheet({ courseId }: { courseId: string }) {
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Cheat Sheet</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Key formulas and equations organized by section
+            Key formulas and equations organized by topic and skill
           </p>
         </div>
 
@@ -149,69 +147,43 @@ function CourseCheatSheet({ courseId }: { courseId: string }) {
               </Card>
             ))}
           </div>
-        ) : !sections || sections.every((s) => s.formulas.length === 0) ? (
+        ) : !hasAnyFormulas ? (
           <Card>
             <CardContent className="p-8 text-center">
               <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground">No formulas available yet.</p>
-              <p className="text-muted-foreground text-sm mt-1">
-                Add formulas from Learn mode using the "+" button on equations.
-              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-6">
-            {sections.filter((s) => s.formulas.length > 0).map((section) => {
-              let counter = 0;
-              return (
-                <Card key={section.topic.id}>
-                  <CardHeader className="p-5 pb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{section.topic.icon}</span>
-                      <CardTitle className="text-lg">{section.topic.name}</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-5 pt-0">
-                    <div className="divide-y">
-                      {section.formulas.map((f) => {
-                        counter++;
-                        return (
-                          <div key={f.id} className="py-3 first:pt-0 last:pb-0">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xs font-mono text-muted-foreground shrink-0">
-                                  {counter}.
-                                </span>
-                                <p className="text-sm font-medium text-muted-foreground truncate">
-                                  {f.title}
-                                </p>
-                                {f.source === "user" && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                                    yours
-                                  </Badge>
-                                )}
-                              </div>
-                              {f.source === "user" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                                  onClick={() => deleteMutation.mutate(f.id)}
-                                  disabled={deleteMutation.isPending}
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
+            {sections!.filter((s) => s.groups.length > 0).map((section) => (
+              <Card key={section.topic.id}>
+                <CardHeader className="p-5 pb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{section.topic.icon}</span>
+                    <CardTitle className="text-lg">{section.topic.name}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 pt-0">
+                  <div className="space-y-5">
+                    {section.groups.map((group) => (
+                      <div key={group.cardId} className="space-y-2">
+                        <h3 className="text-sm font-semibold text-primary">
+                          {group.cardTitle}
+                        </h3>
+                        <div className="rounded-lg border bg-card divide-y">
+                          {group.formulas.map((f) => (
+                            <div key={f.id} className="px-3 py-2.5">
+                              <RichContent content={f.formula} className="text-sm" />
                             </div>
-                            <RichContent content={f.formula} className="text-base" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>

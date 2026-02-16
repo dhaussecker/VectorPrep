@@ -36,12 +36,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
-  FolderOpen, Loader2, ImageIcon, Video,
+  FolderOpen, Loader2, ImageIcon, Video, GraduationCap, FileText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { Topic, LearnCard, QuestionTemplate } from "@shared/schema";
+import type { Topic, LearnCard, QuestionTemplate, Course } from "@shared/schema";
 
 const FORMULA_INSERTS = [
   { label: "Fraction", template: "\\frac{a}{b}", tooltip: "\\frac{a}{b}" },
@@ -244,10 +245,14 @@ export default function AdminPage() {
     <div className="flex-1 overflow-auto">
       <div className="px-6 md:px-8 py-6">
         <h1 className="text-2xl font-bold tracking-tight mb-1" data-testid="text-admin-title">Content Manager</h1>
-        <p className="text-muted-foreground text-sm mb-6">Create and manage topics, learn cards, and question templates</p>
+        <p className="text-muted-foreground text-sm mb-6">Create and manage courses, topics, learn cards, and question templates</p>
 
-        <Tabs defaultValue="topics">
+        <Tabs defaultValue="courses">
           <TabsList data-testid="tabs-admin">
+            <TabsTrigger value="courses" data-testid="tab-courses">
+              <GraduationCap className="w-4 h-4 mr-1.5" />
+              Courses
+            </TabsTrigger>
             <TabsTrigger value="topics" data-testid="tab-topics">
               <FolderOpen className="w-4 h-4 mr-1.5" />
               Topics
@@ -262,6 +267,9 @@ export default function AdminPage() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="courses">
+            <CoursesManager />
+          </TabsContent>
           <TabsContent value="topics">
             <TopicsManager />
           </TabsContent>
@@ -274,6 +282,188 @@ export default function AdminPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+function CoursesManager() {
+  const { toast } = useToast();
+  const [editCourse, setEditCourse] = useState<Course | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: courses, isLoading } = useQuery<Course[]>({
+    queryKey: ["/api/admin/courses"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/admin/courses", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      setShowCreate(false);
+      toast({ title: "Course created" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const res = await apiRequest("PUT", `/api/admin/courses/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      setEditCourse(null);
+      toast({ title: "Course updated" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/courses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      setDeleteId(null);
+      toast({ title: "Course deleted" });
+    },
+  });
+
+  if (isLoading) {
+    return <div className="space-y-3 mt-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>;
+  }
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setShowCreate(true)}>
+          <Plus className="w-4 h-4" />
+          Add Course
+        </Button>
+      </div>
+
+      {courses?.map((course) => (
+        <Card key={course.id}>
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <span className="text-2xl flex-shrink-0">{course.icon}</span>
+              <div className="min-w-0">
+                <h3 className="font-semibold truncate">{course.name}</h3>
+                <p className="text-xs text-muted-foreground truncate">{course.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {course.locked && <Badge variant="secondary">Locked</Badge>}
+              <Badge variant="outline">#{course.orderIndex}</Badge>
+              <Button variant="ghost" size="icon" onClick={() => setEditCourse(course)}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setDeleteId(course.id)}>
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <CourseFormDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onSubmit={(data) => createMutation.mutate(data)}
+        isPending={createMutation.isPending}
+        title="Create Course"
+      />
+
+      {editCourse && (
+        <CourseFormDialog
+          open={!!editCourse}
+          onOpenChange={(open) => !open && setEditCourse(null)}
+          onSubmit={(data) => updateMutation.mutate({ id: editCourse.id, data })}
+          isPending={updateMutation.isPending}
+          title="Edit Course"
+          defaultValues={editCourse}
+        />
+      )}
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Course?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently delete the course and all its topics, learn cards, question templates, and related progress. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function CourseFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaultValues }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (data: any) => void;
+  isPending: boolean;
+  title: string;
+  defaultValues?: Course;
+}) {
+  const [name, setName] = useState(defaultValues?.name || "");
+  const [description, setDescription] = useState(defaultValues?.description || "");
+  const [icon, setIcon] = useState(defaultValues?.icon || "");
+  const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
+  const [locked, setLocked] = useState(defaultValues?.locked ?? false);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Calculus II Part 1" />
+          </div>
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description..." />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Icon/Emoji</Label>
+              <Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="e.g. 📐" />
+            </div>
+            <div className="space-y-2">
+              <Label>Order</Label>
+              <Input type="number" value={orderIndex} onChange={(e) => setOrderIndex(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Locked (Coming Soon)</Label>
+              <p className="text-xs text-muted-foreground">Hide content and show "Coming Soon" badge</p>
+            </div>
+            <Switch checked={locked} onCheckedChange={setLocked} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => onSubmit({ name, description, icon: icon || "📚", orderIndex: parseInt(orderIndex) || 0, locked })} disabled={isPending || !name || !description}>
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -412,6 +602,9 @@ function TopicFormDialog({ open, onOpenChange, onSubmit, isPending, title, defau
   const [description, setDescription] = useState(defaultValues?.description || "");
   const [icon, setIcon] = useState(defaultValues?.icon || "");
   const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
+  const [courseId, setCourseId] = useState(defaultValues?.courseId || "");
+
+  const { data: courses } = useQuery<Course[]>({ queryKey: ["/api/admin/courses"] });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -420,6 +613,21 @@ function TopicFormDialog({ open, onOpenChange, onSubmit, isPending, title, defau
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Course</Label>
+            <Select value={courseId} onValueChange={setCourseId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a course..." />
+              </SelectTrigger>
+              <SelectContent>
+                {courses?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Calculus I" data-testid="input-topic-name" />
@@ -441,7 +649,7 @@ function TopicFormDialog({ open, onOpenChange, onSubmit, isPending, title, defau
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSubmit({ name, description, icon, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !name || !description} data-testid="button-submit-topic">
+          <Button onClick={() => onSubmit({ name, description, icon, orderIndex: parseInt(orderIndex) || 0, courseId: courseId || undefined })} disabled={isPending || !name || !description} data-testid="button-submit-topic">
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
           </Button>
         </DialogFooter>
@@ -471,6 +679,8 @@ function CardsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/topics", selectedTopicId, "cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cheatsheet"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
       setShowCreate(false);
       toast({ title: "Learn card created" });
     },
@@ -483,6 +693,8 @@ function CardsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/topics", selectedTopicId, "cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cheatsheet"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
       setEditCard(null);
       toast({ title: "Learn card updated" });
     },
@@ -494,6 +706,8 @@ function CardsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/topics", selectedTopicId, "cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cheatsheet"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
       setDeleteId(null);
       toast({ title: "Learn card deleted" });
     },
@@ -614,11 +828,20 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
   const [quickCheckAnswer, setQuickCheckAnswer] = useState(defaultValues?.quickCheckAnswer || "");
   const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const insertAtCursor = useInsertAtCursor(textareaRef, content, setContent);
+
+  // Track selection changes so we have it when the button is clicked
+  const handleSelectionChange = () => {
+    const el = textareaRef.current;
+    if (el) {
+      selectionRef.current = { start: el.selectionStart, end: el.selectionEnd };
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-full overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -635,7 +858,25 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
           </div>
 
           <div className="space-y-2">
-            <Label>Content (Markdown + LaTeX)</Label>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <Label>Content (Markdown + LaTeX)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onMouseDown={(e) => {
+                  e.preventDefault(); // Prevent textarea from losing focus/selection
+                  const { start, end } = selectionRef.current;
+                  const selected = content.substring(start, end).trim();
+                  if (!selected) return;
+                  setFormula((prev) => prev ? prev + "\n\n" + selected : selected);
+                }}
+              >
+                <FileText className="w-3 h-3" />
+                Add Selection to Key Formula
+              </Button>
+            </div>
             <FormulaInsertBar onInsert={insertAtCursor} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -643,15 +884,18 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
                 <Textarea
                   ref={textareaRef}
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => { setContent(e.target.value); handleSelectionChange(); }}
+                  onSelect={handleSelectionChange}
+                  onKeyUp={handleSelectionChange}
+                  onMouseUp={handleSelectionChange}
                   placeholder={"Write content using Markdown and LaTeX...\n\nUse $...$ for inline math: $f(x) = x^2$\nUse $$...$$ for display math:\n$$\\int_0^1 x\\,dx = \\frac{1}{2}$$"}
-                  className="min-h-[250px] font-mono text-sm"
+                  className="min-h-[400px] font-mono text-sm"
                   data-testid="input-card-content"
                 />
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Preview</p>
-                <Card className="min-h-[250px] overflow-auto">
+                <Card className="min-h-[400px] overflow-auto">
                   <CardContent className="p-4">
                     {content ? (
                       <RichContent content={content} className="text-sm" />
@@ -666,26 +910,36 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Label>Cheat Sheet Formula (optional)</Label>
-              <Badge variant="outline" className="text-[10px]">Shows on cheat sheet</Badge>
+              <Label>Key Formula (optional)</Label>
+              <Badge variant="outline" className="text-[10px]">Blue box in Learn + Cheat Sheet</Badge>
+              {formula && (
+                <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => setFormula("")}>
+                  <Trash2 className="w-3 h-3" />
+                  Remove
+                </Button>
+              )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              This formula appears in a highlighted blue box on the learn card and is automatically included in the cheat sheet.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
+              <Textarea
                 value={formula}
                 onChange={(e) => setFormula(e.target.value)}
-                placeholder='e.g. $$\int_a^b f(x)\,dx$$'
-                className="font-mono text-sm"
+                placeholder={'e.g. $$\\int_a^b f(x)\\,dx$$\n\nPress Enter for new lines\n\nTip: Select text in Content above and click "Add Selection to Key Formula"'}
+                className="font-mono text-sm min-h-[80px]"
                 data-testid="input-card-formula"
               />
-              <Card className="overflow-auto">
-                <CardContent className="p-2 min-h-[36px] flex items-center">
-                  {formula ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 p-3 min-h-[80px] flex items-center overflow-auto">
+                {formula ? (
+                  <div>
+                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1 uppercase tracking-wide">Key Formula</p>
                     <RichContent content={formula} className="text-sm" />
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">Formula preview...</p>
-                  )}
-                </CardContent>
-              </Card>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Formula preview (blue box)...</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -913,7 +1167,7 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-full overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

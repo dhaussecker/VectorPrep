@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ChevronLeft, RefreshCw, ArrowRight, Check, X, ClipboardCheck, Loader2, Lock } from "lucide-react";
+import { ChevronLeft, RefreshCw, ArrowRight, Check, X, ClipboardCheck, Loader2, Lock, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +150,7 @@ function PracticeTopicSelector({ courseId }: { courseId: string }) {
 function PracticeSession({ courseId, topicId }: { courseId: string; topicId: string }) {
   const [userAnswer, setUserAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
   const [gradeResult, setGradeResult] = useState<{ correct: boolean; correctAnswer: string; solutionSteps: string } | null>(null);
 
   const { data: topicData } = useQuery<{ topic: Topic; practicePercent: number }>({
@@ -180,11 +181,54 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
     },
   });
 
+  // View answer without recording — just reveals solution
+  const viewAnswerMutation = useMutation({
+    mutationFn: async (attemptId: string) => {
+      const res = await apiRequest("POST", `/api/practice/${topicId}/grade`, {
+        attemptId,
+        viewOnly: true,
+      });
+      return res.json() as Promise<{ correct: boolean; correctAnswer: string; solutionSteps: string }>;
+    },
+    onSuccess: (result) => {
+      setGradeResult(result);
+      setShowAnswer(true);
+    },
+  });
+
+  // Mark as mastered after reviewing the answer
+  const markMasteredMutation = useMutation({
+    mutationFn: async (attemptId: string) => {
+      const res = await apiRequest("POST", `/api/practice/${topicId}/grade`, {
+        attemptId,
+        markMastered: true,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/overview"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/practice", topicId, "info"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses", courseId, "topics"] });
+    },
+  });
+
   const handleGenerate = (templateId?: string) => {
     setUserAnswer("");
     setSubmitted(false);
+    setShowAnswer(false);
     setGradeResult(null);
     generateMutation.mutate(templateId);
+  };
+
+  // "Done" after viewing answer — mark as mastered then go to next question
+  const handleDoneNext = (templateId?: string) => {
+    if (generateMutation.data && showAnswer) {
+      markMasteredMutation.mutate(generateMutation.data.attemptId, {
+        onSuccess: () => handleGenerate(templateId),
+      });
+    } else {
+      handleGenerate(templateId);
+    }
   };
 
   const handleSubmit = () => {
@@ -193,6 +237,11 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
       attemptId: generateMutation.data.attemptId,
       answer: userAnswer.trim(),
     });
+  };
+
+  const handleViewAnswer = () => {
+    if (!generateMutation.data) return;
+    viewAnswerMutation.mutate(generateMutation.data.attemptId);
   };
 
   const question = generateMutation.data;
@@ -259,19 +308,18 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="p-5 space-y-3">
-                  <label className="text-sm font-medium">Your Answer</label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={userAnswer}
-                      onChange={(e) => setUserAnswer(e.target.value)}
-                      placeholder="Enter your answer..."
-                      disabled={submitted}
-                      onKeyDown={(e) => e.key === "Enter" && !submitted && handleSubmit()}
-                      data-testid="input-answer"
-                    />
-                    {!submitted && (
+              {!submitted && !showAnswer && (
+                <Card>
+                  <CardContent className="p-5 space-y-3">
+                    <label className="text-sm font-medium">Your Answer</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={userAnswer}
+                        onChange={(e) => setUserAnswer(e.target.value)}
+                        placeholder="Enter your answer..."
+                        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                        data-testid="input-answer"
+                      />
                       <Button
                         onClick={handleSubmit}
                         disabled={!userAnswer.trim() || gradeMutation.isPending}
@@ -279,54 +327,73 @@ function PracticeSession({ courseId, topicId }: { courseId: string; topicId: str
                       >
                         {gradeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit"}
                       </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                    <div className="flex items-center pt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground text-xs"
+                        onClick={handleViewAnswer}
+                        disabled={viewAnswerMutation.isPending}
+                      >
+                        <Eye className="w-3 h-3" />
+                        {viewAnswerMutation.isPending ? "Loading..." : "View Answer"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {gradeResult && (
-                <Card className={gradeResult.correct ? "border-green-500/30" : "border-destructive/30"} data-testid="card-result">
+                <Card className={showAnswer ? "border-muted" : gradeResult.correct ? "border-green-500/30" : "border-destructive/30"} data-testid="card-result">
                   <CardContent className="p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      {gradeResult.correct ? (
-                        <>
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
-                            <Check className="w-4 h-4 text-green-500" />
-                          </div>
-                          <span className="font-semibold text-green-500" data-testid="text-result-status">Correct!</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10">
-                            <X className="w-4 h-4 text-destructive" />
-                          </div>
-                          <span className="font-semibold text-destructive" data-testid="text-result-status">Incorrect</span>
-                        </>
-                      )}
-                    </div>
+                    {!showAnswer && (
+                      <div className="flex items-center gap-2">
+                        {gradeResult.correct ? (
+                          <>
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                              <Check className="w-4 h-4 text-green-500" />
+                            </div>
+                            <span className="font-semibold text-green-500" data-testid="text-result-status">Correct!</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10">
+                              <X className="w-4 h-4 text-destructive" />
+                            </div>
+                            <span className="font-semibold text-destructive" data-testid="text-result-status">Incorrect</span>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <p className="text-sm">
-                        <span className="text-muted-foreground">Correct answer: </span>
+                        <span className="text-muted-foreground">Answer: </span>
                         <span className="font-medium" data-testid="text-correct-answer">{gradeResult.correctAnswer}</span>
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Solution Steps:</p>
+                      <p className="text-sm font-medium">Solution:</p>
                       <div className="bg-muted/50 rounded-md p-3" data-testid="text-solution-steps">
                         <RichContent content={gradeResult.solutionSteps} className="text-sm text-muted-foreground" />
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 pt-2 flex-wrap">
-                      <Button onClick={() => handleGenerate()} data-testid="button-try-another">
-                        <ArrowRight className="w-4 h-4" />
-                        Try Another
+                      <Button
+                        onClick={() => showAnswer ? handleDoneNext() : handleGenerate()}
+                        disabled={markMasteredMutation.isPending}
+                        data-testid="button-try-another"
+                      >
+                        {markMasteredMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                        {showAnswer ? "Done — Next Question" : "Try Another"}
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => handleGenerate(question.templateId)}
+                        onClick={() => showAnswer ? handleDoneNext(question.templateId) : handleGenerate(question.templateId)}
+                        disabled={markMasteredMutation.isPending}
                         data-testid="button-regenerate-similar"
                       >
                         <RefreshCw className="w-4 h-4" />

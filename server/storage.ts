@@ -22,6 +22,8 @@ export interface IStorage {
   getCourses(): Promise<Course[]>;
   getCourse(id: string): Promise<Course | undefined>;
   createCourse(course: InsertCourse): Promise<Course>;
+  updateCourse(id: string, data: Partial<InsertCourse>): Promise<Course>;
+  deleteCourse(id: string): Promise<void>;
   getTopicsByCourse(courseId: string): Promise<Topic[]>;
 
   getTopics(): Promise<Topic[]>;
@@ -58,6 +60,7 @@ export interface IStorage {
 
   getCheatSheetEntries(userId: string, topicId?: string): Promise<CheatSheetEntry[]>;
   addCheatSheetEntry(entry: InsertCheatSheetEntry): Promise<CheatSheetEntry>;
+  updateCheatSheetEntry(id: string, userId: string, formula: string): Promise<CheatSheetEntry | null>;
   deleteCheatSheetEntry(id: string, userId: string): Promise<boolean>;
 }
 
@@ -89,6 +92,20 @@ export class DatabaseStorage implements IStorage {
   async createCourse(course: InsertCourse): Promise<Course> {
     const [created] = await db.insert(courses).values(course).returning();
     return created;
+  }
+
+  async updateCourse(id: string, data: Partial<InsertCourse>): Promise<Course> {
+    const [updated] = await db.update(courses).set(data).where(eq(courses.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCourse(id: string): Promise<void> {
+    // Delete all topics (and their cards/templates) belonging to this course first
+    const courseTopics = await this.getTopicsByCourse(id);
+    for (const topic of courseTopics) {
+      await this.deleteTopic(topic.id);
+    }
+    await db.delete(courses).where(eq(courses.id, id));
   }
 
   async getTopicsByCourse(courseId: string): Promise<Topic[]> {
@@ -252,6 +269,14 @@ export class DatabaseStorage implements IStorage {
   async addCheatSheetEntry(entry: InsertCheatSheetEntry): Promise<CheatSheetEntry> {
     const [created] = await db.insert(cheatSheetEntries).values(entry).returning();
     return created;
+  }
+
+  async updateCheatSheetEntry(id: string, userId: string, formula: string): Promise<CheatSheetEntry | null> {
+    const [updated] = await db.update(cheatSheetEntries)
+      .set({ formula })
+      .where(and(eq(cheatSheetEntries.id, id), eq(cheatSheetEntries.userId, userId)))
+      .returning();
+    return updated ?? null;
   }
 
   async deleteCheatSheetEntry(id: string, userId: string): Promise<boolean> {
