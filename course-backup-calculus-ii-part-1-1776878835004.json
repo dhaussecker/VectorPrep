@@ -1,0 +1,628 @@
+{
+  "exportedAt": "2026-04-22T17:27:15.003Z",
+  "course": {
+    "id": "5b3de628-23c7-4e92-a0dd-9008391468f3",
+    "name": "Calculus II Part 1",
+    "description": "Vectors, integration fundamentals, techniques, and approximation methods",
+    "icon": "📐",
+    "color": "#22C55E",
+    "orderIndex": 0,
+    "locked": false
+  },
+  "tools": [
+    {
+      "id": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+      "courseId": "5b3de628-23c7-4e92-a0dd-9008391468f3",
+      "name": "Vectors",
+      "description": "Building vectors, dot products, cross products, projections, and vector planes",
+      "icon": "→",
+      "status": "active",
+      "orderIndex": 0,
+      "xpReward": 100,
+      "content": [
+        {
+          "id": "e7965851-e4b7-43e7-8261-dfd4eb5fef4b",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "type": "text",
+          "title": "Skill 1: Build a Vector From 2 Points",
+          "content": "Given points $P$ and $Q$, the vector $\\vec{PQ}$ is found by subtracting the coordinates of $P$ from $Q$:\n\n$$\\vec{PQ} = Q - P$$\n\n**Example:** Given $P(1, -1, 2)$, $Q(4, 2, 0)$, $R(1, 3, 2)$\n\n$$\\vec{PQ} = (4, 2, 0) - (1, -1, 2) = (4-1,\\; 2-(-1),\\; 0-2) = (3, 3, -2)$$\n\nSimilarly:\n$$\\vec{PR} = (1, 3, 2) - (1, -1, 2) = (0, 4, 0)$$",
+          "formula": "$$\\vec{PQ} = Q - P$$",
+          "quickCheck": "Find PQ if P = (2, 1) and Q = (5, 4)",
+          "quickCheckAnswer": "(3, 3)",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 0
+        },
+        {
+          "id": "22761dc5-1d72-4bd1-a5d9-a901fdc5a41e",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "type": "text",
+          "title": "Skill 2: Find The Angle Between 2 Vectors Using The Dot Product",
+          "content": "The dot product relates two vectors to the angle between them:\n\n$$\\vec{A} \\cdot \\vec{B} = |A||B|\\cos\\theta$$\n\nSolving for the angle:\n\n$$\\theta = \\cos^{-1}\\left(\\frac{\\vec{A} \\cdot \\vec{B}}{|A||B|}\\right)$$\n\n**Example:** If the points form a triangle, find the angle at $P$:\n- $\\vec{PQ} = (3, 3, -2)$\n- $\\vec{PR} = (0, 4, 0)$\n\n$$\\vec{PQ} \\cdot \\vec{PR} = 3(0) + 3(4) + (-2)(0) = 12$$\n$$|PQ| = \\sqrt{9 + 9 + 4} = \\sqrt{22}, \\quad |PR| = \\sqrt{0 + 16 + 0} = 4$$\n$$\\theta = \\cos^{-1}\\left(\\frac{12}{4\\sqrt{22}}\\right)$$",
+          "formula": "$$\\vec{A} \\cdot \\vec{B} = |A||B|\\cos\\theta$$",
+          "quickCheck": "Find the dot product of (1, 2, 3) and (4, 5, 6)",
+          "quickCheckAnswer": "32",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 1
+        },
+        {
+          "id": "9b457f99-58f2-4498-964f-d284c011dd41",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "type": "text",
+          "title": "Skill 3: Find The Area In a Triangle or Parallegram Using The Cross Product",
+          "content": "The area of a triangle formed by vectors $\\vec{PQ}$ and $\\vec{PR}$ is:\n\n$$\\text{Area Triangle} = \\frac{1}{2}|\\vec{PQ} \\times \\vec{PR}|$$\n\nThe area of a parallegram formed by vectors $\\vec{PQ}$ and $\\vec{PR}$ is:\n\n$$\\text{Area Parallegram} = |\\vec{PQ} \\times \\vec{PR}|$$\n\n**Computing the cross product** using the determinant:\n\n$$\\vec{PQ} \\times \\vec{PR} = \\begin{vmatrix} \\hat{i} & \\hat{j} & \\hat{k} \\\\ PQ_x & PQ_y & PQ_z \\\\ PR_x & PR_y & PR_z \\end{vmatrix}$$\n\n**Example:** $\\vec{PQ} = (3, 3, -2)$, $\\vec{PR} = (0, 4, 0)$\n\n$$\\vec{PQ} \\times \\vec{PR} = \\hat{i}(3 \\cdot 0 - (-2) \\cdot 4) - \\hat{j}(3 \\cdot 0 - (-2) \\cdot 0) + \\hat{k}(3 \\cdot 4 - 3 \\cdot 0)$$\n$$= (8, 0, 12)$$\n\n$$|\\vec{PQ} \\times \\vec{PR}| = \\sqrt{64 + 0 + 144} = \\sqrt{208} = 4\\sqrt{13}$$\n\n$$\\text{Area} = \\frac{1}{2}(4\\sqrt{13}) = 2\\sqrt{13}$$",
+          "formula": "$$\\text{Area Triangle} = \\frac{1}{2}|\\vec{PQ} \\times \\vec{PR}|$$\n\n$$\\text{Area Parallegram} = |\\vec{PQ} \\times \\vec{PR}|$$",
+          "quickCheck": "What is the magnitude of (8, 0, 12)?",
+          "quickCheckAnswer": "4sqrt(13)",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 2
+        },
+        {
+          "id": "3a56af58-80df-4be7-83cd-4aeca4c43050",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "type": "text",
+          "title": "Skill 4: Projections",
+          "content": "**Vector Projection** of $\\vec{u}$ onto $\\vec{v}$:\n\n$$\\text{proj}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||^2}\\vec{v}$$\n\n**Scalar Projection** (component):\n\n$$\\text{comp}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||}$$\n\n**Example:** Find the projection of $\\vec{PQ}$ onto $\\vec{PR}$\n\n$\\vec{PQ} = (3, 3, -2)$, $\\vec{PR} = (0, 4, 0)$\n\n**Step 1:** $\\vec{PQ} \\cdot \\vec{PR} = 12$, $|\\vec{PR}|^2 = 16$\n\n**Step 2:** $\\text{proj}_{\\vec{PR}}\\vec{PQ} = \\frac{12}{16}(0, 4, 0) = \\frac{3}{4}(0, 4, 0) = (0, 3, 0)$\n\n**Scalar projection:** $\\text{comp}_{\\vec{PR}}\\vec{PQ} = \\frac{12}{4} = 3$",
+          "formula": "**Vector Projection** of $\\vec{u}$ onto $\\vec{v}$:\n\n$$\\text{proj}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||^2}\\vec{v}$$\n\n**Scalar Projection** (component):\n\n$$\\text{comp}_{\\vec{v}}\\vec{u} = \\frac{\\vec{u} \\cdot \\vec{v}}{||\\vec{v}||}$$",
+          "quickCheck": "Find proj_v(u) if u = (4, 2) and v = (3, 0)",
+          "quickCheckAnswer": "(4, 0)",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 3
+        },
+        {
+          "id": "3f879faa-21a5-49e5-9f14-942e64231ef5",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "type": "text",
+          "title": "Skill 5: Vector Planes",
+          "content": "## Vector Equation of a Plane\n\nA **vector equation** of a plane requires a point and two **directional vectors** that lie in the plane.\n\nGiven three points, pick one as the base point and build two directional vectors from it to the other two points.\n\n$$\\vec{r} = \\vec{r_0} + s\\vec{v_1} + t\\vec{v_2}, \\quad s, t \\in \\mathbb{R}$$\n\n**Example:** Find a vector equation of the plane through $P(1, 2, 0)$, $Q(3, 0, 1)$, $R(2, 1, 3)$.\n\n**Step 1:** Build directional vectors from $P$:\n$$\\vec{PQ} = Q - P = (3,0,1) - (1,2,0) = (2, -2, 1)$$\n$$\\vec{PR} = R - P = (2,1,3) - (1,2,0) = (1, -1, 3)$$\n\n**Step 2:** Write the vector equation:\n$$(1, 2, 0) + (2, -2, 1)s + (1, -1, 3)t, \\quad s, t \\in \\mathbb{R}$$\n\n---\n\n## Scalar Equation of a Plane\n\nA **scalar equation** has the form $ax + by + cz + d = 0$ where $(a, b, c)$ is a **normal vector** perpendicular to the plane.\n\nTo find the normal vector, take the **cross product** of two directional vectors in the plane:\n\n$$\\vec{n} = \\vec{v_1} \\times \\vec{v_2}$$\n\nThen plug in a point to solve for $d$.\n\n**Steps:**\n1. Find two directional vectors (same as vector equation)\n2. Compute $\\vec{n} = \\vec{v_1} \\times \\vec{v_2}$\n3. Write $a(x - x_0) + b(y - y_0) + c(z - z_0) = 0$ using the normal and a point\n4. Simplify to $ax + by + cz + d = 0$\n\n**Example (continued):** Find a scalar equation of the plane through $P(1,2,0)$, $Q(3,0,1)$, $R(2,1,3)$.\n\n**Step 1:** $\\vec{PQ} = (2, -2, 1)$, $\\vec{PR} = (1, -1, 3)$\n\n**Step 2:** Cross product:\n$$\\vec{PQ} \\times \\vec{PR} = \\begin{vmatrix} \\hat{i} & \\hat{j} & \\hat{k} \\\\ 2 & -2 & 1 \\\\ 1 & -1 & 3 \\end{vmatrix}$$\n$$= \\hat{i}((-2)(3) - (1)(-1)) - \\hat{j}((2)(3) - (1)(1)) + \\hat{k}((2)(-1) - (-2)(1))$$\n$$= (-5, -5, 0)$$\n\nWe can simplify by dividing by $-5$: $\\vec{n} = (1, 1, 0)$ (any scalar multiple works).\n\n**Step 3:** Using point $P(1, 2, 0)$:\n$$1(x - 1) + 1(y - 2) + 0(z - 0) = 0$$\n\n**Step 4:** Expand:\n$$x + y - 3 = 0$$\n\n---\n\n## Distance from a Point to a Plane\n\n$$D = \\frac{|ax_1 + by_1 + cz_1 + d|}{\\sqrt{a^2 + b^2 + c^2}}$$",
+          "formula": "$$\\vec{r} = \\vec{r_0} + s\\vec{v_1} + t\\vec{v_2}, \\quad s, t \\in \\mathbb{R}$$\n\n$$ax + by + cz + d = 0 \\quad \\text{where } \\vec{n} = (a,b,c) = \\vec{v_1} \\times \\vec{v_2}$$",
+          "quickCheck": "Given A(1,0,0), B(0,1,0), C(0,0,1), what is AB × AC?",
+          "quickCheckAnswer": "(1, 1, 1)",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 4
+        }
+      ],
+      "tasks": [],
+      "questionTemplates": [
+        {
+          "id": "ec579e0d-59f0-4f03-9083-9a15b6c55092",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the magnitude of vector $({a}, {b})$.",
+          "solutionTemplate": "$|\\vec{v}| = \\sqrt{{a}^2 + {b}^2} = \\sqrt{{a2} + {b2}} = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a": {
+              "max": 12,
+              "min": 1
+            },
+            "b": {
+              "max": 12,
+              "min": 1
+            }
+          }
+        },
+        {
+          "id": "0c4077ba-6e72-4b48-ae05-b6669710f85a",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the dot product of $({a1}, {a2})$ and $({b1}, {b2})$.",
+          "solutionTemplate": "$\\vec{a} \\cdot \\vec{b} = {a1} \\cdot {b1} + {a2} \\cdot {b2} = {p1} + {p2} = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a1": {
+              "max": 8,
+              "min": 1
+            },
+            "a2": {
+              "max": 8,
+              "min": 1
+            },
+            "b1": {
+              "max": 8,
+              "min": 1
+            },
+            "b2": {
+              "max": 8,
+              "min": 1
+            }
+          }
+        },
+        {
+          "id": "13c5a654-a08a-406a-baab-2d1ea1cd5d0d",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the area of the parallegram formed by vectors $({2}, {-1}, {3})$ and $({1},{4}, {-2})$.",
+          "solutionTemplate": "Comput the cross product:\n\ni component: (−1)(−2)−(3)(4)=2−12=−10\n\nj component(remember the minus!): −((2)(−2)−(3)(1))=−(−4−3)=−(−7)=7\n\nk component (2)(4)−(−1)(1)=8−(−1)=9\n\nTherefore the cross product results in: \n\n⟨−10, 7, 9⟩\n\nTaking the magnitude: \n$\\sqrt{(-10)^{2}+(7)^{2}+(9)^{2}} =\\sqrt{230}$\n\n$= {\\sqrt{230}}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a1": {
+              "max": 8,
+              "min": 1
+            },
+            "a2": {
+              "max": 8,
+              "min": 1
+            },
+            "b1": {
+              "max": 8,
+              "min": 1
+            },
+            "b2": {
+              "max": 8,
+              "min": 1
+            }
+          }
+        },
+        {
+          "id": "a810eef6-8e1e-4c13-893a-d079a6316444",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the distance between $A({x1}, {y1}, {z1})$ and $B({x2}, {y2}, {z2})$.",
+          "solutionTemplate": "$\\vec{AB} = ({dx}, {dy}, {dz})$\n\n$|\\vec{AB}| = \\sqrt{{dx2} + {dy2} + {dz2}} = \\sqrt{{sum}} = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "x1": {
+              "max": 4,
+              "min": 0
+            },
+            "x2": {
+              "max": 5,
+              "min": 0
+            },
+            "y1": {
+              "max": 3,
+              "min": -3
+            },
+            "y2": {
+              "max": 4,
+              "min": -2
+            },
+            "z1": {
+              "max": 4,
+              "min": 0
+            },
+            "z2": {
+              "max": 3,
+              "min": -3
+            }
+          }
+        },
+        {
+          "id": "7183afa2-3d55-4d7b-b1b5-ec6dddd47bde",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the angle (in degrees) between vectors $\\vec{u} = ({a1}, {a2}, {a3})$ and $\\vec{v} = ({b1}, {b2}, {b3})$.",
+          "solutionTemplate": "$\\vec{u} \\cdot \\vec{v} = {dot}$\n\n$|\\vec{u}| = {magA}, \\quad |\\vec{v}| = {magB}$\n\n$\\theta = \\cos^{-1}\\left(\\frac{{dot}}{{magA} \\cdot {magB}}\\right) = {answer}°$",
+          "answerType": "numeric",
+          "parameters": {
+            "a1": {
+              "max": 3,
+              "min": -3
+            },
+            "a2": {
+              "max": 3,
+              "min": -3
+            },
+            "a3": {
+              "max": 3,
+              "min": -3
+            },
+            "b1": {
+              "max": 3,
+              "min": -3
+            },
+            "b2": {
+              "max": 3,
+              "min": -3
+            },
+            "b3": {
+              "max": 3,
+              "min": -3
+            }
+          }
+        },
+        {
+          "id": "aec1635a-17c1-4278-92f4-d7a0b0c9b917",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the area of triangle $ABC$ where $A(1,-1,2)$, $B(3,0,-1)$, $C(1,2,3)$.\n\nHint: Use $\\text{Area} = \\frac{1}{2}|\\vec{AB} \\times \\vec{AC}|$.",
+          "solutionTemplate": "$\\vec{AB} = (2,1,-3)$, $\\vec{AC} = (0,3,1)$\n\n$\\vec{AB} \\times \\vec{AC} = (10, -2, 6)$\n\n$|\\vec{AB} \\times \\vec{AC}| = \\sqrt{140}$\n\nArea $= \\frac{\\sqrt{140}}{2} \\approx 5.92$",
+          "answerType": "numeric",
+          "parameters": {
+            "_answer": 5.92
+          }
+        },
+        {
+          "id": "c3abbf58-341a-44ba-8145-a6d7caf55c17",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the scalar equation of the plane through $A(2,1,0)$, $B(0,2,1)$, $C(1,0,2)$.",
+          "solutionTemplate": "$\\vec{AB} = (-2,1,1)$, $\\vec{AC} = (-1,-1,2)$\n\n$\\vec{n} = \\vec{AB} \\times \\vec{AC} = (3,3,3)$\n\nUsing point $A$: $3(x-2)+3(y-1)+3(z-0)=0$\n\nSimplify: $x + y + z = 3$",
+          "answerType": "text",
+          "parameters": {
+            "_answer": "x+y+z=3"
+          }
+        },
+        {
+          "id": "183cf2ff-b077-48d6-9de4-30380bf55fbb",
+          "toolId": "f35f281b-b9c5-478f-857f-89bd5e6d002b",
+          "templateText": "Find the distance from $P({px}, {py}, {pz})$ to the plane ${pa}x + {pb}y + {pc}z = {pd}$.",
+          "solutionTemplate": "$d = \\frac{|{pa}({px}) + {pb}({py}) + {pc}({pz}) - {pd}|}{\\sqrt{{pa}^2 + {pb}^2 + {pc}^2}} = \\frac{{num}}{{den}} = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "pa": {
+              "max": 4,
+              "min": 1
+            },
+            "pb": {
+              "max": 3,
+              "min": -3
+            },
+            "pc": {
+              "max": 4,
+              "min": 1
+            },
+            "pd": {
+              "max": 10,
+              "min": 1
+            },
+            "px": {
+              "max": 4,
+              "min": -2
+            },
+            "py": {
+              "max": 4,
+              "min": -2
+            },
+            "pz": {
+              "max": 4,
+              "min": -2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+      "courseId": "5b3de628-23c7-4e92-a0dd-9008391468f3",
+      "name": "Integration Fundamentals",
+      "description": "Riemann sums, Fundamental Theorem of Calculus, and graphical connections",
+      "icon": "∫",
+      "status": "active",
+      "orderIndex": 1,
+      "xpReward": 100,
+      "content": [
+        {
+          "id": "6092a98b-3230-4bc6-9f17-87490e068c33",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "type": "text",
+          "title": "Skill 1: Using The Riemann Sum Formula",
+          "content": "A Riemann sum approximates $\\int_a^b f(x) \\, dx$ by dividing $[a,b]$ into $n$ subintervals of width $\\Delta x = \\frac{b-a}{n}$\n\n$$\\int_a^b f(x) \\, dx \\approx \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$\n\nwhere $x_i = a + i \\cdot \\Delta x$\n\n**Example:** Write $\\int_0^2 x^2$ with n = 4 as a Riemann Sum\n\n$\\Delta x = 0.5$\n\n$x_{i}$ = a +i$\\Delta x$ = a +i$\\Delta x$ = 0 + i$\\Delta x$\n\n$$\\int_a^b f(x) \\, dx = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$\n\n$$\\int_0^2 x^{2} \\, dx = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} (0 + 0.5i)0.5$$",
+          "formula": "$$\\int_a^b f(x) \\, dx = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} f(x_i^*) \\Delta x$$\n\n$x_i = a + i \\cdot \\Delta x$\n\n$\\Delta x = \\frac{b-a}{n}$",
+          "quickCheck": "What is delta x for [0, 4] with n = 4?",
+          "quickCheckAnswer": "1",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 0
+        },
+        {
+          "id": "9e5cb99f-d782-44b7-b141-b17e64bd1cfb",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "type": "text",
+          "title": "Skill 2: Apply Part 1 of Fundamental Theorem of Calculus",
+          "content": "**FTC Part 1** connects integrals and derivatives:\n\nIf $F(x) = \\int_a^x f(t) \\, dt$, then:\n\n$$F'(x) = f(x)$$\n\nThe derivative of an integral (with variable upper limit) gives back the original function.\n\n**With chain rule:** If the upper limit is $g(x)$ instead of just $x$:\n\n$$\\frac{d}{dx}\\int_a^{g(x)} f(t) \\, dt = f(g(x)) \\cdot g'(x)$$\n\n**Example 1:** $\\frac{d}{dx}\\int_1^x t^3 \\, dt = x^3$\n\n**Example 2:** $\\frac{d}{dx}\\int_0^{x^2} \\sin(t) \\, dt = \\sin(x^2) \\cdot 2x$\n\n**Example 3:** $\\frac{d}{dx}\\int_x^5 e^t \\, dt = -\\frac{d}{dx}\\int_5^x e^t \\, dt = -e^x$\n\n> Note: If $g(x)$ is in the lower limit, flip the integral and negate.",
+          "formula": "$$\\frac{d}{dx}\\int_a^x f(t) \\, dt = f(x)$$\n\nThe derivative of an integral (with variable upper limit) gives back the original function.\n\n**With chain rule:** If the upper limit is $g(x)$ instead of just $x$:\n\n$$\\frac{d}{dx}\\int_a^{g(x)} f(t) \\, dt = f(g(x)) \\cdot g'(x)$$\n\n> Note: If $g(x)$ is in the lower limit, flip the integral and negate.",
+          "quickCheck": "What is d/dx of integral from 1 to x of t^2 dt?",
+          "quickCheckAnswer": "x^2",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 1
+        },
+        {
+          "id": "fef4d7f6-fcbd-4fde-ad21-2afcd7ccadc8",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "type": "text",
+          "title": "Skill 3: Apply Part 2 of Fundamental Theorem of Calculus",
+          "content": "**FTC Part 2** (Evaluation Theorem):\n\nIf $F'(x) = f(x)$ (i.e., $F$ is an antiderivative of $f$), then:\n\n$$\\int_a^b f(x) \\, dx = F(b) - F(a)$$\n\n**Steps:**\n1. Find the antiderivative $F(x)$\n2. Evaluate $F$ at the upper limit $b$\n3. Evaluate $F$ at the lower limit $a$\n4. Subtract: $F(b) - F(a)$\n\n**Example 1:** $\\int_1^3 2x \\, dx$\n\n$F(x) = x^2$, so $F(3) - F(1) = 9 - 1 = 8$\n\n**Example 2:** $\\int_0^{\\pi} \\sin(x) \\, dx$\n\n$F(x) = -\\cos(x)$, so $-\\cos(\\pi) - (-\\cos(0)) = 1 + 1 = 2$\n\n**Example 3:** $\\int_1^e \\frac{1}{x} \\, dx$\n\n$F(x) = \\ln(x)$, so $\\ln(e) - \\ln(1) = 1 - 0 = 1$",
+          "formula": "$$\\int_a^b f(x) \\, dx = F(b) - F(a)$$",
+          "quickCheck": "Evaluate the integral of 3x^2 from 0 to 2",
+          "quickCheckAnswer": "8",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 2
+        },
+        {
+          "id": "ca90ef6d-619a-4449-a708-2c76ddd0c37d",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "type": "text",
+          "title": "Skill 4: Relate Derivatives To Integrals Graphically",
+          "content": "The derivative and integral have a visual relationship on graphs:\n\nLets assume $F(x) = \\int_0^x f(t)$\n\n- F(x) is the integral of f from 0 to x\n- Therefore, F(x) is the accumulated area from 0 to x\n- Therefore, F(x) has a max where there is the most accumulated postive area\n- And, F(x) has a min where there is the most accumulated negative area\n\n**Example:**\n\n\n\n![ChatGPT Image Feb 16, 2026, 02_29_54 PM.png](/uploads/ChatGPT_Image_Feb_16__2026__02_29_54_PM-1771273807260.png)\n\nAssuming f(t) is shown and $F(x) = \\int_0^x f(t)$:\n\nRemembering F(t) represents accumulation of area\n\n- f(t) has a positive accumulation of area from 0 to 4    => F(t) is INCREASING\n- f(t) has a negative accumulation of area from 4  to 5.5 => F(t) is DECEASING\n- f(t) has a positive accumulation of area from 5.5  to 9 => F(t) is INCREASING\n\nThe minimum of F(t) is at 5.5 since that is where it stops decreasing\n",
+          "formula": "$$F'(x) = f(x) \\implies F \\text{ increases where } f > 0$$",
+          "quickCheck": null,
+          "quickCheckAnswer": null,
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 3
+        }
+      ],
+      "tasks": [],
+      "questionTemplates": [
+        {
+          "id": "f0e8fdf6-d224-4ca1-ac3f-b8008098219b",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "templateText": "Evaluate the definite integral: $\\int_0^{b} {a}x \\, dx$",
+          "solutionTemplate": "$\\int {a}x \\, dx = \\frac{{a}x^2}{2}$\n\nEvaluate from $0$ to ${b}$: $\\frac{{a} \\cdot {b}^2}{2} - 0 = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a": {
+              "max": 6,
+              "min": 1
+            },
+            "b": {
+              "max": 5,
+              "min": 1
+            }
+          }
+        },
+        {
+          "id": "2122d71c-2bd6-46fc-b16e-b1eabc315fdb",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "templateText": "Evaluate: $\\int_1^{b} {a}x^2 \\, dx$",
+          "solutionTemplate": "$\\int {a}x^2 \\, dx = \\frac{{a}x^3}{3}$\n\nEvaluate: $\\frac{{a} \\cdot {b}^3}{3} - \\frac{{a}}{3} = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a": {
+              "max": 4,
+              "min": 1
+            },
+            "b": {
+              "max": 4,
+              "min": 2
+            }
+          }
+        },
+        {
+          "id": "2ea55100-a60d-4c2d-90a2-5238ce98b74c",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "templateText": "If $F(x) = \\int_0^x f(t) \\, dt$ and $f(x) < 0$ on $(0, {a})$ and $f(x) > 0$ for $x > {a}$, at what $x$ value does $F$ achieve its minimum?",
+          "solutionTemplate": "Since $f < 0$ on $(0, {a})$, $F$ is **decreasing** on that interval.\n\nSince $f > 0$ for $x > {a}$, $F$ is **increasing** after $x = {a}$.\n\nThe minimum occurs where $f$ changes from negative to positive: $x = {answer}$.",
+          "answerType": "numeric",
+          "parameters": {
+            "a": {
+              "max": 6,
+              "min": 1
+            }
+          }
+        },
+        {
+          "id": "3e5cec46-4b4f-418b-a0fa-a2c2e239fed3",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "templateText": "If $F(x) = \\int_0^{{k}x} \\sin(t^2) \\, dt$, find $F'(0)$.",
+          "solutionTemplate": "By FTC Part 1 with the chain rule:\n\n$F'(x) = \\sin(({k}x)^2) \\cdot {k}$\n\nAt $x = 0$: $F'(0) = {k} \\cdot \\sin(0) = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "k": {
+              "max": 5,
+              "min": 2
+            }
+          }
+        },
+        {
+          "id": "da29330a-104e-4605-a249-25f7ecf18d4d",
+          "toolId": "d29dd37f-de51-40c1-9f6b-d14dec4649cf",
+          "templateText": "If $\\int f(x) \\, dx = {c}x^{n} + C$, find $f(x)$.",
+          "solutionTemplate": "Differentiate the antiderivative:\n\n$f(x) = \\frac{d}{dx}({c}x^{n}) = {answer}$",
+          "answerType": "text",
+          "parameters": {
+            "c": {
+              "max": 8,
+              "min": 2
+            },
+            "n": {
+              "max": 5,
+              "min": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+      "courseId": "5b3de628-23c7-4e92-a0dd-9008391468f3",
+      "name": "Integration Techniques",
+      "description": "u-substitution, integration by parts, trig integration, and partial fractions",
+      "icon": "∮",
+      "status": "active",
+      "orderIndex": 2,
+      "xpReward": 100,
+      "content": [
+        {
+          "id": "73fafe6a-f49a-4380-942f-7215bee54059",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "type": "text",
+          "title": "Skill 1: u Substitution",
+          "content": "U-sub applies only when you can set u to be equal to something that when you take the derivative, it will cancel out all the x's.\n\nFor example,\n$\\int 2x \\cos(x^2) \\, dx$\n\nIf I let $u = x^2$, there derivative is 2x which will fully cancel with the 2x in the question.\n\n**Steps:**\n\n0 CHECK IF U SUB IS THE RIGHT METHOD\n1. Choose $u$ (usually the \"inner\" function)\n2. Find $du/dx$, then find $dx$\n3. Substitute $u$ and $dx$ into the integral\n4. Integrate in terms of $u$\n5. Back-substitute to $x$\n\n** NOTE: IF THE INTEGRAL HAS BOUNDS find the bounds in terms of u **\n\nExample$\\int_{2}^{4} xe^{2x^{2}}\\,dx$\n\nSet u = $2x^{2}$\n\ndu = 4xdx\n\ndx=du/4x\n\nBounds: $u = 2(2)^{2} = 8 , u = 2(4)^{2} = 32$\n\nNew integral has bounds:\n$\\int_{8}^{32} e^{u}\\,du/4$\n\n**Example 1:** $\\int 2x \\cos(x^2) \\, dx$\n\n1. Let $u = x^2$\n2. $du/dx = 2x => du=2xdx => dx = du/2 $\n3. \n\n$$\\int \\cos(u) \\, du = \\sin(u) + C = \\sin(x^2) + C$$\n\n**Example 2:** $\\int \\frac{3x^2}{x^3 + 1} \\, dx$\n\nLet $u = x^3 + 1$, $du = 3x^2 \\, dx$:\n$$\\int \\frac{du}{u} = \\ln|u| + C = \\ln|x^3 + 1| + C$$\n\n**For definite integrals:** Change the limits when you substitute!\n$$\\int_a^b f(g(x))g'(x) \\, dx = \\int_{g(a)}^{g(b)} f(u) \\, du$$",
+          "formula": "$$\\int f(g(x)) \\cdot g'(x) \\, dx = \\int f(u) \\, du$$\n\nU-sub applies only when you can set u to be equal to something that when you take the derivative, it will cancel out all the x's.\n\n**For definite integrals:** Change the limits when you substitute!\n$$\\int_a^b f(g(x))g'(x) \\, dx = \\int_{g(a)}^{g(b)} f(u) \\, du$$\n\n**Steps:**\n\n0 CHECK IF U SUB IS THE RIGHT METHOD\n1. Choose $u$ (usually the \"inner\" function)\n2. Find $du/dx$, then find $dx$\n3. Substitute $u$ and $dx$ into the integral\n4. Integrate in terms of $u$\n5. Back-substitute to $x$\n\n** NOTE: IF THE INTEGRAL HAS BOUNDS find the bounds in terms of u **",
+          "quickCheck": "If u = x^2 + 1, what is du?",
+          "quickCheckAnswer": "2x dx",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 0
+        },
+        {
+          "id": "33a5561d-e90e-4ee6-bb4f-02e1ec66f3da",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "type": "text",
+          "title": "Skill 2: Integration by Parts",
+          "content": "Integration by parts comes from the product rule in reverse:\n\n$$\\int u \\, dv = uv - \\int v \\, du$$\n\nu:\n\n- Must be able to find the derivative of\n- Usually a simple function (x, $x^2$) or ln(x)\n\ndv:\n\n- Must be able to integrate\n- Usually $sin(x), e^x$\n\n\n**LIATE Rule** for choosing $u$ (in order of priority):\n- **L**ogarithmic: $\\ln(x)$\n- **I**nverse trig: $\\arctan(x)$\n- **A**lgebraic: $x^2, x$\n- **T**rig: $\\sin(x), \\cos(x)$\n- **E**xponential: $e^x$\n\n**Example 1:** $\\int x e^x \\, dx$\n\nLet $u = x$, $dv = e^x \\, dx$, then $du = dx$, $v = e^x$:\n$$xe^x - \\int e^x \\, dx = xe^x - e^x + C$$\n\n**Example 2:** $\\int x^2 \\sin(x) \\, dx$\n\nRequires applying integration by parts **twice**. After first application with $u = x^2$, $dv = \\sin(x)dx$, you get another integral that needs IBP again.",
+          "formula": "$$\\int u \\, dv = uv - \\int v \\, du$$\n\nu:\n\n- Must be able to find the derivative of\n- Usually a simple function (x, $x^2$) or ln(x)\n\ndv:\n\n- Must be able to integrate\n- Usually $sin(x), e^x$\n\n\n**LIATE Rule** for choosing $u$ (in order of priority):\n- **L**ogarithmic: $\\ln(x)$\n- **I**nverse trig: $\\arctan(x)$\n- **A**lgebraic: $x^2, x$\n- **T**rig: $\\sin(x), \\cos(x)$\n- **E**xponential: $e^x$",
+          "quickCheck": "In integration by parts for integral of x*cos(x) dx, what should u be?",
+          "quickCheckAnswer": "x",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 1
+        },
+        {
+          "id": "7286a6b7-9135-4528-8e41-e1d33d7bced8",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "type": "text",
+          "title": "Skill 3: Trig and Trig Inverse Integrals",
+          "content": "## Part 1 — Core Identities (Memorize)\n\n### Pythagorean Identities\n$$\\sin^2 x + \\cos^2 x = 1$$\n$$1 + \\tan^2 x = \\sec^2 x$$\n$$1 + \\cot^2 x = \\csc^2 x$$\n\n### Power-Reducing (Half-Angle) — Used when powers are even\n$$\\sin^2 x = \\frac{1 - \\cos(2x)}{2}$$\n$$\\cos^2 x = \\frac{1 + \\cos(2x)}{2}$$\n\n### Double-Angle\n$$\\sin(2x) = 2\\sin x \\cos x$$\n\n---\n\n## Part 2 — Basic Trig Integrals (Memorize)\n\n$$\\int \\sin x \\, dx = -\\cos x + C$$\n$$\\int \\cos x \\, dx = \\sin x + C$$\n$$\\int \\sec^2 x \\, dx = \\tan x + C$$\n$$\\int \\csc^2 x \\, dx = -\\cot x + C$$\n$$\\int \\sec x \\tan x \\, dx = \\sec x + C$$\n$$\\int \\csc x \\cot x \\, dx = -\\csc x + C$$\n\n---\n\n## Part 3 — Inverse Trig Integral Formulas (Recognition)\n\nThese are **direct recognition** formulas — memorize the patterns:\n\n### Arcsin Form\n$$\\int \\frac{1}{\\sqrt{a^2 - x^2}} \\, dx = \\sin^{-1}\\!\\left(\\frac{x}{a}\\right) + C$$\n\n### Arctan Form\n$$\\int \\frac{1}{a^2 + x^2} \\, dx = \\frac{1}{a}\\tan^{-1}\\!\\left(\\frac{x}{a}\\right) + C$$\n\n### Arcsec Form\n$$\\int \\frac{1}{x\\sqrt{x^2 - a^2}} \\, dx = \\frac{1}{a}\\sec^{-1}\\!\\left(\\frac{|x|}{a}\\right) + C$$\n\n### Why these work — Derivatives of inverse trig:\n$$\\frac{d}{dx}(\\sin^{-1} x) = \\frac{1}{\\sqrt{1-x^2}}, \\quad \\frac{d}{dx}(\\tan^{-1} x) = \\frac{1}{1+x^2}, \\quad \\frac{d}{dx}(\\sec^{-1} x) = \\frac{1}{|x|\\sqrt{x^2-1}}$$\n\n### Example (Arcsin): $\\int \\frac{1}{\\sqrt{9-x^2}} \\, dx$\n\nFactor the constant: $\\sqrt{9-x^2} = 3\\sqrt{1-(x/3)^2}$\n\nSet $u = \\frac{x}{3}$, so $du = \\frac{1}{3}dx \\implies dx = 3\\,du$\n\n$$\\int \\frac{1}{3\\sqrt{1-u^2}} \\cdot 3\\,du = \\int \\frac{1}{\\sqrt{1-u^2}}\\,du = \\sin^{-1}(u) + C = \\sin^{-1}\\!\\left(\\frac{x}{3}\\right) + C$$\n\n### Example (Arctan): $\\int \\frac{1}{9+x^2} \\, dx$\n\n$$= \\frac{1}{3}\\tan^{-1}\\!\\left(\\frac{x}{3}\\right) + C$$\n\n---\n\n## Part 4 — Integrals of $\\sin^m x \\cos^n x$\n\n### CASE 1: One power is ODD\n\n**Strategy:** Save one of the odd function, convert the rest, substitute.\n\n**Example:** $\\int \\sin^3 x \\cos x \\, dx$\n\n1. Rewrite: $= \\int \\sin^2 x \\cdot \\sin x \\cos x \\, dx$\n2. Use $\\sin^2 x = 1 - \\cos^2 x$: $= \\int (1 - \\cos^2 x) \\sin x \\cos x \\, dx$\n3. Let $u = \\cos x$, $du = -\\sin x \\, dx$\n4. $= -\\int (1 - u^2) u \\, du$\n5. Expand and integrate as a polynomial\n\n### CASE 2: Both powers are EVEN\n\n**Strategy:** Use half-angle identities to reduce.\n\n**Example:** $\\int \\sin^2 x \\cos^2 x \\, dx$\n\n1. $= \\int \\frac{1-\\cos 2x}{2} \\cdot \\frac{1+\\cos 2x}{2} \\, dx$\n2. $= \\int \\frac{1-\\cos^2 2x}{4} \\, dx$\n3. Reduce $\\cos^2 2x$ again with half-angle if needed, then integrate\n\n---\n\n## Part 5 — Integrals of $\\tan^m x \\sec^n x$\n\n### CASE 1: Sec power is ODD\n**Save** $\\sec x \\tan x$ (because $\\frac{d}{dx}(\\sec x) = \\sec x \\tan x$)\n\n**Example:** $\\int \\sec^3 x \\tan x \\, dx$\n\n1. Rewrite: $= \\int \\sec^2 x \\cdot (\\sec x \\tan x) \\, dx$\n2. Let $u = \\sec x$, $du = \\sec x \\tan x \\, dx$\n3. $= \\int u^2 \\, du = \\frac{u^3}{3} + C = \\frac{\\sec^3 x}{3} + C$\n\n### CASE 2: Tan power is ODD\n**Save** $\\sec^2 x$ (because $\\frac{d}{dx}(\\tan x) = \\sec^2 x$)\n\n**Example:** $\\int \\tan^3 x \\sec^2 x \\, dx$\n\n1. Let $u = \\tan x$, $du = \\sec^2 x \\, dx$\n2. $= \\int u^3 \\, du = \\frac{u^4}{4} + C = \\frac{\\tan^4 x}{4} + C$\n\n### CASE 3: Sec is EVEN\n**Convert** using $\\sec^2 x = 1 + \\tan^2 x$\n\n**Example:** $\\int \\sec^4 x \\, dx$\n\n1. $= \\int (1 + \\tan^2 x) \\sec^2 x \\, dx$\n2. Let $u = \\tan x$, $du = \\sec^2 x \\, dx$\n3. $= \\int (1 + u^2) \\, du = u + \\frac{u^3}{3} + C = \\tan x + \\frac{\\tan^3 x}{3} + C$\n\n---\n\n## Part 6 — Strategy Summary\n\n| If you see | Strategy |\n|---|---|\n| $\\sin^m x \\cos^n x$ (one odd) | Save one, convert, substitute |\n| $\\sin^m x \\cos^n x$ (both even) | Half-angle identities |\n| $\\sec^n x \\tan^m x$ (sec odd) | Save $\\sec x \\tan x$, sub $u = \\sec x$ |\n| $\\sec^n x \\tan^m x$ (tan odd) | Save $\\sec^2 x$, sub $u = \\tan x$ |\n| $\\sec^n x$ (even) | Convert $\\sec^2 = 1 + \\tan^2$ |\n| $\\frac{1}{\\sqrt{a^2 - x^2}}$ | $\\to \\sin^{-1}(x/a)$ |\n| $\\frac{1}{a^2 + x^2}$ | $\\to \\frac{1}{a}\\tan^{-1}(x/a)$ |\n| $\\frac{1}{x\\sqrt{x^2 - a^2}}$ | $\\to \\frac{1}{a}\\sec^{-1}(|x|/a)$ |",
+          "formula": "### Basic Trig Integrals\n$$\\int \\sin x\\,dx = -\\cos x + C, \\quad \\int \\cos x\\,dx = \\sin x + C$$\n$$\\int \\sec^2 x\\,dx = \\tan x + C, \\quad \\int \\csc^2 x\\,dx = -\\cot x + C$$\n$$\\int \\sec x \\tan x\\,dx = \\sec x + C, \\quad \\int \\csc x \\cot x\\,dx = -\\csc x + C$$\n\n### Inverse Trig Recognition\n$$\\int \\frac{1}{\\sqrt{a^2 - x^2}}\\,dx = \\sin^{-1}\\!\\left(\\frac{x}{a}\\right) + C$$\n$$\\int \\frac{1}{a^2 + x^2}\\,dx = \\frac{1}{a}\\tan^{-1}\\!\\left(\\frac{x}{a}\\right) + C$$\n$$\\int \\frac{1}{x\\sqrt{x^2 - a^2}}\\,dx = \\frac{1}{a}\\sec^{-1}\\!\\left(\\frac{|x|}{a}\\right) + C$$\n\n### Strategy\n| sin/cos | sec/tan |\n|---|---|\n| One odd → save one | Sec odd → save sec·tan |\n| Both even → half-angle | Tan odd → save sec² |\n| | Sec even → convert to tan |",
+          "quickCheck": "What substitution do you use for ∫ 1/√(25 - x²) dx?",
+          "quickCheckAnswer": "u = x/5 → sin⁻¹(x/5) + C",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 2
+        },
+        {
+          "id": "4fe902a0-323e-4c64-a7fb-e2426b61f949",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "type": "text",
+          "title": "Skill 5: Inverse Trig Substitution",
+          "content": "## Inverse Substitution\n\n### Step 1 — Choose the correct trig substitution\n| If you see | Set |\n|---|---|\n| $\\sqrt{a^2 - x^2}$ | $x = a\\sin\\theta$ |\n| $\\sqrt{a^2 + x^2}$ | $x = a\\tan\\theta$ |\n| $\\sqrt{x^2 - a^2}$ | $x = a\\sec\\theta$ |\n\n### Step 2 — Find trig$\\theta$ \n\nFrom your substitution, isolate the trig function:\n- Example: $x = a\\sin\\theta$ => $\\sin\\theta = \\frac{x}{a}$\n\n### Step 3 — Find dx/d$\\theta$ then get $dx$\n\n| Substitution | $\\frac{dx}{d\\theta}$ | $dx$ |\n|---|---|---|\n| $x = a\\sin\\theta$ | $a\\cos\\theta$ | $dx = a\\cos\\theta \\, d\\theta$ |\n\n\n### Step 4 — Find $\\theta$\n- Example: $\\sin\\theta = \\frac{x}{a} \\implies \\theta = \\arcsin\\left(\\frac{x}{a}\\right)$\n\n### Step 5 — Substitute $x$, $dx$, and the radical into the integral\n\n### Step 6 — Simplify using identities\n\nCommon simplification for $\\sqrt{a^2 - x^2}$ with $x = a\\sin\\theta$:\n\n$$\\sqrt{a^2 - x^2} = \\sqrt{a^2 - a^2\\sin^2\\theta} = a\\sqrt{1 - \\sin^2\\theta} = a\\cos\\theta$$\n\nUseful rewrite: $\\cot^2\\theta = \\csc^2\\theta - 1$\n\nKey Identities:\n\n\n![Screenshot 2026-02-16 150318.png](/uploads/Screenshot_2026-02-16_150318-1771276092636.png)\n\n\n\n### Step 7 — Integrate in $\\theta$\n\n### Step 8 — Draw the triangle and convert back to $x$\n\nUse the trig equation from Step 2 to build a right triangle:\n\n| If | opp | adj | hyp |\n|---|---|---|---|\n| $\\sin\\theta = \\frac{x}{a}$ | $x$ | $\\sqrt{a^2 - x^2}$ | $a$ |\n| $\\tan\\theta = \\frac{x}{a}$ | $x$ | $a$ | $\\sqrt{a^2 + x^2}$ |\n| $\\sec\\theta = \\frac{x}{a}$ | $\\sqrt{x^2 - a^2}$ | $a$ | $x$ |\n\n### Step 9 — Substitute back to $x$ (final answer)\n\n---\n\n## Worked Example: $\\int \\frac{\\sqrt{9 - x^2}}{x^2} \\, dx$\n\n**Step 1:** Radical is $\\sqrt{9 - x^2}$ which matches $\\sqrt{a^2 - x^2}$ with $a = 3$. Set $x = 3\\sin\\theta$.\n\n**Step 2:** $\\sin\\theta = \\frac{x}{3}$\n\n**Step 3:** $dx = 3\\cos\\theta \\, d\\theta$\n\n**Step 4:** $\\theta = \\arcsin\\left(\\frac{x}{3}\\right)$\n\n**Step 5:** Simplify the radical:\n$$\\sqrt{9 - x^2} = \\sqrt{9 - 9\\sin^2\\theta} = 3\\cos\\theta$$\n\nAlso $x^2 = 9\\sin^2\\theta$. Substitute:\n\n$$\\int \\frac{3\\cos\\theta}{9\\sin^2\\theta}(3\\cos\\theta \\, d\\theta)$$\n\n**Step 6:** Simplify:\n$$= \\int \\frac{9\\cos^2\\theta}{9\\sin^2\\theta} \\, d\\theta = \\int \\frac{\\cos^2\\theta}{\\sin^2\\theta} \\, d\\theta = \\int \\cot^2\\theta \\, d\\theta$$\n\nUse $\\cot^2\\theta = \\csc^2\\theta - 1$:\n$$= \\int (\\csc^2\\theta - 1) \\, d\\theta$$\n\n**Step 7:** Integrate:\n$$= -\\cot\\theta - \\theta + C$$\n\n**Step 8:** From $\\sin\\theta = \\frac{x}{3}$: opp $= x$, hyp $= 3$, adj $= \\sqrt{9 - x^2}$\n\n$$\\cot\\theta = \\frac{\\text{adj}}{\\text{opp}} = \\frac{\\sqrt{9 - x^2}}{x}$$\n\n**Step 9:** Final answer:\n$$\\int \\frac{\\sqrt{9 - x^2}}{x^2} \\, dx = -\\frac{\\sqrt{9 - x^2}}{x} - \\arcsin\\left(\\frac{x}{3}\\right) + C$$",
+          "formula": "$$\\sqrt{a^2 - x^2} \\to x = a\\sin\\theta, \\quad \\sqrt{a^2 + x^2} \\to x = a\\tan\\theta, \\quad \\sqrt{x^2 - a^2} \\to x = a\\sec\\theta$$\n\n### Step 1 — Choose the correct trig substitution\n| If you see | Set |\n|---|---|\n| $\\sqrt{a^2 - x^2}$ | $x = a\\sin\\theta$ |\n| $\\sqrt{a^2 + x^2}$ | $x = a\\tan\\theta$ |\n| $\\sqrt{x^2 - a^2}$ | $x = a\\sec\\theta$ |\n\n### Step 2 — Find trig$\\theta$ \n\nFrom your substitution, isolate the trig function:\n- Example: $x = a\\sin\\theta$ => $\\sin\\theta = \\frac{x}{a}$\n\n### Step 3 — Find dx/d$\\theta$ then get $dx$\n\n| Substitution | $\\frac{dx}{d\\theta}$ | $dx$ |\n|---|---|---|\n| $x = a\\sin\\theta$ | $a\\cos\\theta$ | $dx = a\\cos\\theta \\, d\\theta$ |\n\n### Step 4 — Find $\\theta$\n- Example: $\\sin\\theta = \\frac{x}{a} \\implies \\theta = \\arcsin\\left(\\frac{x}{a}\\right)$\n\n### Step 5 — Substitute $x$, $dx$, and the radical into the integral\n\n### Step 6 — Simplify using identities\n\n### Step 7 — Integrate in $\\theta$\n\n### Step 8 — Draw the triangle and convert back to $x$\n\n### Step 9 — Substitute back to $x$ (final answer)\n\n![Screenshot 2026-02-16 150318.png](/uploads/Screenshot_2026-02-16_150318-1771276092636.png)",
+          "quickCheck": "What identity do you use for cos^2(x)?",
+          "quickCheckAnswer": "(1 + cos(2x))/2",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 3
+        },
+        {
+          "id": "729452e2-f9cb-458d-99bc-895c10aa6f09",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "type": "text",
+          "title": "Skill 4: Partial Fractions",
+          "content": "Partial fractions is for rational functions $\\frac{P(x)}{Q(x)}$\n\nSteps:\n1. Check the degree of the functions\n- If degree(top) >= degree(bottom) => Do synthetic division of polynomials first\n\n\nhttps://www.youtube.com/shorts/ONlGhHRLNug\n\n\n- If degree(top) < degree(bottom) => Go directly to partial fractions\n\n2 . Factor the denominator\n\n3 . Decompose to the correct form\n\n**Distinct linear factors:**\n$$\\frac{1}{(x-a)(x-b)} = \\frac{A}{x-a} + \\frac{B}{x-b}$$\n\n**Repeated linear factor:**\n$$\\frac{1}{(x-a)^2} = \\frac{A}{x-a} + \\frac{B}{(x-a)^2}$$\n\n**Irreducible quadratic factor:**\n$$\\frac{1}{(x-a)(x^2+1)} = \\frac{A}{x-a} + \\frac{Bx+C}{x^2+1}$$\n\n**Example:** $\\int \\frac{1}{x^2 - 1} \\, dx = \\int \\frac{1}{(x-1)(x+1)} \\, dx$\n\n4 . Multiply both sides by the denominator\n\n5 . Match coefficients and solve\n- set all constants terms equal to each other and solve\n- set all x terms equal to each other and solve\n- set all x^{2} terms equal to each other and solve\n\n6 . Plug the A,B,C back into (3)\n\n7 . Integrate the individual terms\n\n\n![Screenshot 2026-02-15 131157.png](/uploads/Screenshot_2026-02-15_131157-1771182764374.png)\n\n\n8 . + C\n\n$$\\frac{1}{(x-1)(x+1)} = \\frac{A}{x-1} + \\frac{B}{x+1}$$\n\nMultiply both sides by $(x-1)(x+1)$: $1 = A(x+1) + B(x-1)$\n\nSet $x = 1$: $1 = 2A \\implies A = \\frac{1}{2}$\nSet $x = -1$: $1 = -2B \\implies B = -\\frac{1}{2}$\n\n$$= \\frac{1}{2}\\ln|x-1| - \\frac{1}{2}\\ln|x+1| + C$$",
+          "formula": "$$\\frac{P(x)}{Q(x)} = \\frac{A}{x-a} + \\frac{B}{x-b} + \\cdots$$\n\nSteps:\n1. Check the degree of the functions\n- If degree(top) >= degree(bottom) => Do synthetic division of polynomials first\n- If degree(top) < degree(bottom) => Go directly to partial fractions\n\n2 . Factor the denominator\n\n3 . Decompose to the correct form\n\n**Distinct linear factors:**\n$$\\frac{1}{(x-a)(x-b)} = \\frac{A}{x-a} + \\frac{B}{x-b}$$\n\n**Repeated linear factor:**\n$$\\frac{1}{(x-a)^2} = \\frac{A}{x-a} + \\frac{B}{(x-a)^2}$$\n\n**Irreducible quadratic factor:**\n$$\\frac{1}{(x-a)(x^2+1)} = \\frac{A}{x-a} + \\frac{Bx+C}{x^2+1}$$\n\n4 . Multiply both sides by the denominator\n\n5 . Match coefficients and solve\n- set all constants terms equal to each other and solve\n- set all x terms equal to each other and solve\n- set all x^{2} terms equal to each other and solve\n\n6 . Plug the A,B,C back into (3)\n\n7 . Integrate the individual terms\n\n\n![Screenshot 2026-02-15 131157.png](/uploads/Screenshot_2026-02-15_131157-1771182764374.png)\n\n8 . + C",
+          "quickCheck": "Decompose 1/((x-1)(x+1)): what is A?",
+          "quickCheckAnswer": "1/2",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 3
+        }
+      ],
+      "tasks": [],
+      "questionTemplates": [
+        {
+          "id": "d18ed6f3-c3a7-4e88-91ae-72cad59ff9f0",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "templateText": "Find $\\int x \\cos({a}x) \\, dx$.",
+          "solutionTemplate": "Let $u = x$, $dv = \\cos({a}x)dx$\n\n$du = dx$, $v = \\frac{1}{{a}}\\sin({a}x)$\n\n$= \\frac{x}{{a}}\\sin({a}x) + \\frac{1}{{a}^2}\\cos({a}x) + C$",
+          "answerType": "text",
+          "parameters": {
+            "a": {
+              "max": 4,
+              "min": 2
+            }
+          }
+        },
+        {
+          "id": "e69d69cb-227b-4fa1-a801-767c82daf060",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "templateText": "Evaluate $\\int \\frac{x+4}{x^2+6x+8} \\, dx$.",
+          "solutionTemplate": "Factor: $x^2+6x+8 = (x+2)(x+4)$\n\nDecompose: $\\frac{x+4}{(x+2)(x+4)} = \\frac{1}{x+2}$\n\n$\\int \\frac{1}{x+2} \\, dx = \\ln|x+2| + C$",
+          "answerType": "text",
+          "parameters": {
+            "_answer": "ln|x+2|+C"
+          }
+        },
+        {
+          "id": "4ee64d49-420f-4aa5-bf16-f8943a23c4eb",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "templateText": "Evaluate $\\int_0^1 x e^{x^2} \\, dx$ using substitution.",
+          "solutionTemplate": "Let $u = x^2$, $du = 2x \\, dx$, so $x \\, dx = \\frac{du}{2}$\n\nWhen $x=0$: $u=0$. When $x=1$: $u=1$.\n\n$= \\frac{1}{2}\\int_0^1 e^u \\, du = \\frac{1}{2}(e^1 - e^0) = \\frac{e-1}{2} \\approx 0.86$",
+          "answerType": "numeric",
+          "parameters": {
+            "_answer": 0.86
+          }
+        },
+        {
+          "id": "ffae0d8e-8809-44b6-803b-05be432be017",
+          "toolId": "fbb23614-9fbf-4d34-b5e1-8eed4516095b",
+          "templateText": "Using integration by parts, evaluate $\\int_0^1 {a}x e^x \\, dx$.",
+          "solutionTemplate": "Let $u = {a}x$, $dv = e^x dx$, then $du = {a}dx$, $v = e^x$\n\n$= {a}xe^x - {a}e^x \\Big|_0^1 = ({a}e - {a}e) - (0 - {a}) = {answer}$",
+          "answerType": "numeric",
+          "parameters": {
+            "a": {
+              "max": 5,
+              "min": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+      "courseId": "5b3de628-23c7-4e92-a0dd-9008391468f3",
+      "name": "Approximations",
+      "description": "Midpoint, Simpson's, and trapezoidal approximation methods",
+      "icon": "≈",
+      "status": "active",
+      "orderIndex": 3,
+      "xpReward": 100,
+      "content": [
+        {
+          "id": "a067d0be-b413-4be7-9877-6c15bd754524",
+          "toolId": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+          "type": "text",
+          "title": "Skill 1: Midpoint Approximation",
+          "content": "The midpoint rule uses the function value at the center of each subinterval:\n\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n\n$$M_n = \\sum_{i=1}^{n} f(\\bar{x}_i) \\Delta x$$\n\nwhere $\\bar{x}_i = \\frac{x_{i-1} + x_i}{2}$ is the midpoint and $\\Delta x = \\frac{b-a}{n}$.\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$\n2. Find the midpoints\n3. Evaluate $f$ at each midpoint\n4. Add all the $f$'s at each midpoint together\n5. Multiple that answer by $\\Delta x$\n\n**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:\n\n$\\Delta x = 0.5$, midpoints: $0.25, 0.75, 1.25, 1.75$\n\n$M_4 = 0.5[f(0.25) + f(0.75) + f(1.25) + f(1.75)]$\n$= 0.5[0.0625 + 0.5625 + 1.5625 + 3.0625] = 0.5(5.25) = 2.625$\n\n(Exact answer: $\\frac{8}{3} \\approx 2.667$)\n\n**Practice Problem:**\n\n![Midpoint approximation example problem](/midpoint-example.png)\nSolution:\n![unnamed.png](/uploads/unnamed-1771176140865.png)",
+          "formula": "$$M_n = \\Delta x \\sum_{i=1}^{n} f(\\bar{x}_i)$$\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$\n2. Find the midpoints\n3. Evaluate $f$ at each midpoint\n4. Add all the $f$'s at each midpoint together\n5. Multiple that answer by $\\Delta x$",
+          "quickCheck": "What is the midpoint of the interval [1, 3]?",
+          "quickCheckAnswer": "2",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 0
+        },
+        {
+          "id": "d6c846a0-75f1-4970-aa96-8ab84fa99ff0",
+          "toolId": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+          "type": "text",
+          "title": "Skill 2: Simpson's Approximation",
+          "content": "Simpson's rule uses parabolas to approximate the curve. Requires $n$ to be **even**:\n\n$$S_n = \\frac{\\Delta x}{3}[f(x_0) + 4f(x_1) + 2f(x_2) + 4f(x_3) + \\cdots + 4f(x_{n-1}) + f(x_n)]$$\n\n**Coefficient pattern:** $1, 4, 2, 4, 2, \\ldots, 4, 1$\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$ (make sure $n$ is even)\n2. Find all sample points $x_0, x_1, \\ldots, x_n$\n3. Apply alternating coefficients: $1, 4, 2, 4, 2, \\ldots, 4, 1$\n4. Multiply sum by $\\frac{\\Delta x}{3}$\n\n**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:\n\n$$S_4 = \\frac{0.5}{3}[f(0) + 4f(0.5) + 2f(1) + 4f(1.5) + f(2)]$$\n$$= \\frac{0.5}{3}[0 + 4(0.25) + 2(1) + 4(2.25) + 4]$$\n$$= \\frac{0.5}{3}[0 + 1 + 2 + 9 + 4] = \\frac{0.5}{3}(16) = \\frac{8}{3}$$\n\nPractice:\n\n\n![Screenshot 2026-02-15 230304.png](/uploads/Screenshot_2026-02-15_230304-1771218208710.png)\n\nSolution:\n\n\n![unnamed (1).png](/uploads/unnamed__1_-1771218268010.png)\n\n",
+          "formula": "$$S_n = \\frac{\\Delta x}{3}[f(x_0) + 4f(x_1) + 2f(x_2) + \\cdots + 4f(x_{n-1}) + f(x_n)]$$\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$ (make sure $n$ is even)\n2. Find all sample points $x_0, x_1, \\ldots, x_n$\n3. Apply alternating coefficients: $1, 4, 2, 4, 2, \\ldots, 4, 1$\n4. Multiply sum by $\\frac{\\Delta x}{3}$",
+          "quickCheck": "Must n be even or odd for Simpson's rule?",
+          "quickCheckAnswer": "even",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 1
+        },
+        {
+          "id": "ffdcbfe0-0a44-4140-b9a7-b62aeac491ec",
+          "toolId": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+          "type": "text",
+          "title": "Skill 3: Trapezoidal Approximation",
+          "content": "The trapezoidal rule approximates the area using trapezoids:\n\n$$T_n = \\frac{\\Delta x}{2}[f(x_0) + 2f(x_1) + 2f(x_2) + \\cdots + 2f(x_{n-1}) + f(x_n)]$$\n\n**Coefficient pattern:** First and last get $1$, all middle terms get $2$.\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$\n2. Find all sample points $x_0, x_1, \\ldots, x_n$\n3. Evaluate $f$ at each point\n4. Apply: first + last get coefficient 1, all others get coefficient 2\n5. Multiply by $\\frac{\\Delta x}{2}$\n\n**Example:** Approximate $\\int_0^2 x^2 \\, dx$ with $n = 4$:\n\n$\\Delta x = 0.5$, points: $0, 0.5, 1, 1.5, 2$\n\n$$T_4 = \\frac{0.5}{2}[f(0) + 2f(0.5) + 2f(1) + 2f(1.5) + f(2)]$$\n$$= 0.25[0 + 2(0.25) + 2(1) + 2(2.25) + 4]$$\n$$= 0.25[0 + 0.5 + 2 + 4.5 + 4] = 0.25(11) = 2.75$$\n\n(Exact answer: $\\frac{8}{3} \\approx 2.667$)\n",
+          "formula": "$$T_n = \\frac{\\Delta x}{2}[f(x_0) + 2f(x_1) + \\cdots + 2f(x_{n-1}) + f(x_n)]$$\n\n**Steps:**\n1. Compute $\\Delta x = \\frac{b-a}{n}$\n2. Find all sample points $x_0, x_1, \\ldots, x_n$\n3. Evaluate $f$ at each point\n4. Apply: first + last get coefficient 1, all others get coefficient 2\n5. Multiply by $\\frac{\\Delta x}{2}$",
+          "quickCheck": "In the trapezoidal rule, what coefficient do the middle terms get?",
+          "quickCheckAnswer": "2",
+          "url": null,
+          "imageUrl": null,
+          "orderIndex": 2
+        }
+      ],
+      "tasks": [],
+      "questionTemplates": [
+        {
+          "id": "41b72899-0fec-46a6-9bbf-5bfc613a6814",
+          "toolId": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+          "templateText": "Given the table:\n\n| $x$ | 0 | 2 | 4 | 6 | 8 |\n|---|---|---|---|---|---|\n| $f(x)$ | 3 | 5 | 4 | 6 | 2 |\n\nUse the Midpoint Rule with $n = 2$ subintervals on $[0, 8]$ to approximate $\\int_0^8 f(x) \\, dx$.",
+          "solutionTemplate": "$\\Delta x = \\frac{8 - 0}{2} = 4$\n\nMidpoints: $x = 2$ and $x = 6$\n\n$M_2 = 4[f(2) + f(6)] = 4(5 + 6) = 44$",
+          "answerType": "numeric",
+          "parameters": {
+            "_answer": 44
+          }
+        },
+        {
+          "id": "5964dc32-8411-46d3-bf36-5b3149aaa383",
+          "toolId": "a8d6f5b2-460d-4636-a64e-b9bb534d95c5",
+          "templateText": "Given the table:\n\n| $x$ | 0 | 2 | 4 | 6 | 8 |\n|---|---|---|---|---|---|\n| $f(x)$ | 3 | 5 | 4 | 6 | 2 |\n\nUse Simpson's Rule with $n = 4$ to approximate $\\int_0^8 f(x) \\, dx$.",
+          "solutionTemplate": "$\\Delta x = 2$\n\n$S_4 = \\frac{2}{3}[f(0) + 4f(2) + 2f(4) + 4f(6) + f(8)]$\n\n$= \\frac{2}{3}[3 + 20 + 8 + 24 + 2] = \\frac{2}{3}(57) = 38$",
+          "answerType": "numeric",
+          "parameters": {
+            "_answer": 38
+          }
+        }
+      ]
+    }
+  ]
+}
