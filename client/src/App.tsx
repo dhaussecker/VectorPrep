@@ -1,13 +1,11 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Loader2 } from "lucide-react";
+import { LayoutDashboard, GraduationCap, ClipboardCheck, BookOpen, Loader2 } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
@@ -18,6 +16,32 @@ import ProgressPage from "@/pages/progress";
 import AdminPage from "@/pages/admin";
 import CheatSheetPage from "@/pages/cheat-sheet";
 import DemoPage from "@/pages/demo";
+
+const navItems = [
+  { label: "Home", url: "/", icon: LayoutDashboard },
+  { label: "Classes", url: "/classes", icon: BookOpen },
+  { label: "Learn", url: "/learn", icon: GraduationCap },
+  { label: "Practice", url: "/practice", icon: ClipboardCheck },
+];
+
+function BottomNav() {
+  const [location] = useLocation();
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 flex">
+      {navItems.map((item) => {
+        const isActive = item.url === "/" ? location === "/" : location.startsWith(item.url);
+        return (
+          <Link key={item.url} href={item.url} className="flex-1">
+            <div className={`flex flex-col items-center justify-center py-3 gap-1 transition-colors ${isActive ? "text-[#FFD400]" : "text-white/40 hover:text-white/70"}`}>
+              <item.icon className="w-5 h-5" />
+              <span className="text-[10px] font-mono uppercase tracking-wide">{item.label}</span>
+            </div>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 function Router() {
   return (
@@ -44,41 +68,43 @@ function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/demo") {
-    return <DemoPage />;
-  }
+  if (location === "/demo") return <DemoPage />;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0F0F0F]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#FFD400] border-2 border-white/20 flex items-center justify-center shadow-[0_3px_0_0_rgba(255,255,255,0.15)]">
+            <span className="text-lg font-black font-mono text-[#0F0F0F]">VP</span>
+          </div>
+          <Loader2 className="w-5 h-5 animate-spin text-white/40" />
+        </div>
       </div>
     );
   }
 
-  if (!user) {
-    return <AuthPage />;
-  }
-
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
+  if (!user) return <AuthPage />;
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center gap-2 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
+    <div className="flex flex-col h-screen w-full">
+      {/* Top bar */}
+      <header className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#0A0A0A] sticky top-0 z-40 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#FFD400] border border-white/20 flex items-center justify-center shadow-[0_2px_0_0_rgba(255,255,255,0.1)]">
+            <span className="text-xs font-black font-mono text-[#0F0F0F]">VP</span>
+          </div>
+          <span className="text-sm font-bold font-mono text-white tracking-tight">Vector Prep</span>
         </div>
-      </div>
-    </SidebarProvider>
+      </header>
+
+      {/* Scrollable content */}
+      <main className="flex-1 overflow-auto pb-20">
+        <Router />
+      </main>
+
+      {/* Bottom nav */}
+      <BottomNav />
+    </div>
   );
 }
 

@@ -9,8 +9,20 @@ export default {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */
         sm: ".1875rem", /* 3px */
+        "2xl": "18px",
+        "3xl": "24px",
+        pill: "999px",
+      },
+      boxShadow: {
+        hard: "var(--sh-hard)",
+        "hard-sm": "var(--sh-hard-sm)",
       },
       colors: {
+        oq: {
+          yellow: "hsl(var(--oq-yellow) / <alpha-value>)",
+          cyan: "hsl(var(--oq-cyan) / <alpha-value>)",
+          ink: "hsl(var(--oq-ink) / <alpha-value>)",
+        },
         // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",

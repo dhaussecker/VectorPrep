@@ -1,331 +1,160 @@
 import { useState } from "react";
-import { Link } from "wouter";
-import {
-  GraduationCap, Loader2, BookOpen, Brain, BarChart3,
-  RefreshCw, FileText, Sparkles, CheckCircle2, Zap, Play,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
+const floaters = [
+  { sym: "∫", size: 4, top: 8, left: 7, dur: 5.2 },
+  { sym: "Σ", size: 3, top: 18, left: 85, dur: 6.8 },
+  { sym: "∇", size: 5, top: 55, left: 4, dur: 4.5 },
+  { sym: "∂", size: 3.5, top: 72, left: 78, dur: 7.1 },
+  { sym: "π", size: 4, top: 38, left: 92, dur: 5.9 },
+  { sym: "√2", size: 3, top: 88, left: 20, dur: 6.3 },
+  { sym: "dx", size: 3.5, top: 25, left: 50, dur: 4.9 },
+  { sym: "lim", size: 3, top: 65, left: 55, dur: 7.5 },
+  { sym: "×", size: 5, top: 45, left: 30, dur: 5.6 },
+  { sym: "F=ma", size: 2.5, top: 80, left: 65, dur: 6.1 },
+];
+
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true);
-  const { login, register: registerUser } = useAuth();
+  const { loginWithGoogle, login } = useAuth();
   const { toast } = useToast();
+  const [showEmail, setShowEmail] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const [googlePending, setGooglePending] = useState(false);
 
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  const [regDisplayName, setRegDisplayName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regInviteCode, setRegInviteCode] = useState("");
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail || !loginPassword) {
-      toast({ title: "Please fill in all fields", variant: "destructive" });
-      return;
-    }
-    setIsPending(true);
+  const handleGoogle = async () => {
+    setGooglePending(true);
     try {
-      await login(loginEmail, loginPassword);
-    } catch (err: any) {
-      toast({ title: "Login failed", description: err.message, variant: "destructive" });
-    } finally {
-      setIsPending(false);
+      await loginWithGoogle();
+    } catch {
+      toast({ title: "Google sign-in failed", variant: "destructive" });
+      setGooglePending(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regEmail || !regPassword || !regDisplayName || !regInviteCode) {
-      toast({ title: "Please fill in all fields", variant: "destructive" });
-      return;
-    }
-    if (regPassword.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
-      return;
-    }
+    if (!email || !password) return;
     setIsPending(true);
     try {
-      await registerUser(regEmail, regPassword, regDisplayName, regInviteCode);
+      await login(email, password);
     } catch (err: any) {
-      toast({ title: "Registration failed", description: err.message, variant: "destructive" });
+      toast({ title: "Sign in failed", description: err.message, variant: "destructive" });
     } finally {
       setIsPending(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-primary/5 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center relative overflow-hidden">
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(-3deg); opacity: 0.035; }
+          50% { transform: translateY(-22px) rotate(3deg); opacity: 0.06; }
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .auth-card { animation: fadeUp 0.6s cubic-bezier(0.2,0.8,0.2,1) both; }
+        .btn-press:active { transform: translateY(3px); box-shadow: 0 1px 0 0 rgba(0,0,0,0.4) !important; }
+      `}</style>
 
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Top nav bar */}
-        <header className="w-full px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary shadow-md">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">Vector Prep</span>
+      {/* Floating math symbols */}
+      {floaters.map((f, i) => (
+        <div
+          key={i}
+          className="absolute font-mono font-black text-white select-none pointer-events-none"
+          style={{
+            fontSize: `${f.size}rem`,
+            top: `${f.top}%`,
+            left: `${f.left}%`,
+            animation: `float ${f.dur}s ease-in-out infinite`,
+            animationDelay: `${i * 0.4}s`,
+            opacity: 0.04,
+          }}
+        >
+          {f.sym}
+        </div>
+      ))}
+
+      {/* Center card */}
+      <div className="auth-card relative z-10 w-full max-w-[340px] px-5">
+
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-3 mb-10">
+          <div className="w-16 h-16 rounded-2xl bg-[#FFD400] border-2 border-white/20 shadow-[0_4px_0_0_rgba(255,255,255,0.15)] flex items-center justify-center">
+            <span className="text-2xl font-black font-mono text-[#0F0F0F] tracking-tighter">VP</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/demo">
-              <Button size="sm" variant="ghost" className="text-muted-foreground">
-                <Play className="w-3.5 h-3.5" />
-                Try Demo
-              </Button>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setIsLogin(true)}
-              className={`text-sm px-3 py-1.5 rounded-md transition-colors ${isLogin ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Sign In
-            </button>
-            <Button
-              size="sm"
-              variant={!isLogin ? "default" : "outline"}
-              onClick={() => setIsLogin(false)}
-            >
-              Get Started
-            </Button>
-          </div>
-        </header>
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16 px-6 py-8 max-w-7xl mx-auto w-full">
-
-          {/* Left side — Hero + Features */}
-          <div className="flex-1 max-w-xl space-y-8">
-            {/* Hero text */}
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
-                <Sparkles className="w-3.5 h-3.5" />
-                Built for first-year engineering students
-              </div>
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]">
-                Ace your exams with
-                <span className="text-primary block">smarter studying</span>
-              </h1>
-              <p className="text-lg text-muted-foreground leading-relaxed max-w-md">
-                Interactive lessons, unlimited practice problems, and a personal cheat sheet builder — everything you need in one place.
-              </p>
-            </div>
-
-            {/* Stats row */}
-            <div className="flex gap-8">
-              <div>
-                <div className="text-2xl font-bold">100+</div>
-                <div className="text-xs text-muted-foreground">Practice Questions</div>
-              </div>
-              <div className="w-px bg-border" />
-              <div>
-                <div className="text-2xl font-bold">Step-by-step</div>
-                <div className="text-xs text-muted-foreground">Worked Solutions</div>
-              </div>
-              <div className="w-px bg-border" />
-              <div>
-                <div className="text-2xl font-bold">Real-time</div>
-                <div className="text-xs text-muted-foreground">Progress Tracking</div>
-              </div>
-            </div>
-
-            {/* Feature cards grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <FeatureCard
-                icon={<BookOpen className="w-5 h-5" />}
-                title="Learn Cards"
-                description="Bite-sized lessons with key formulas, diagrams, and embedded videos"
-                color="text-blue-500 bg-blue-500/10"
-              />
-              <FeatureCard
-                icon={<Brain className="w-5 h-5" />}
-                title="Adaptive Practice"
-                description="Randomized problems that test your understanding with instant feedback"
-                color="text-violet-500 bg-violet-500/10"
-              />
-              <FeatureCard
-                icon={<BarChart3 className="w-5 h-5" />}
-                title="Progress Tracking"
-                description="See exactly where you stand on every topic and skill"
-                color="text-emerald-500 bg-emerald-500/10"
-              />
-              <FeatureCard
-                icon={<FileText className="w-5 h-5" />}
-                title="Cheat Sheet Builder"
-                description="Auto-generated formula sheets you can customize and take to exams"
-                color="text-amber-500 bg-amber-500/10"
-              />
-            </div>
-
-            {/* Bottom features list */}
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <MiniFeature label="Unlimited question regeneration" />
-              <MiniFeature label="View full worked solutions" />
-              <MiniFeature label="Multiple courses supported" />
-              <MiniFeature label="Mobile friendly" />
-            </div>
-          </div>
-
-          {/* Right side — Auth form */}
-          <div className="w-full max-w-[420px] flex-shrink-0">
-            <Card className="shadow-xl border-border/50 backdrop-blur-sm">
-              <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl">{isLogin ? "Welcome back" : "Create your account"}</CardTitle>
-                <CardDescription>
-                  {isLogin ? "Sign in to continue your study session" : "Join your classmates and start studying smarter"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLogin ? (
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email">Email</Label>
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="you@university.edu"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        data-testid="input-email"
-                        autoComplete="email"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password">Password</Label>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        data-testid="input-password"
-                        autoComplete="current-password"
-                      />
-                    </div>
-                    <Button type="submit" className="w-full h-11 text-sm font-medium" disabled={isPending} data-testid="button-login">
-                      {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                      Sign In
-                    </Button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleRegister} className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-display-name">Full Name</Label>
-                      <Input
-                        id="reg-display-name"
-                        placeholder="John Doe"
-                        value={regDisplayName}
-                        onChange={(e) => setRegDisplayName(e.target.value)}
-                        data-testid="input-display-name"
-                        autoComplete="name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-email">Email</Label>
-                      <Input
-                        id="reg-email"
-                        type="email"
-                        placeholder="you@university.edu"
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                        data-testid="input-reg-email"
-                        autoComplete="email"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-password">Password</Label>
-                      <Input
-                        id="reg-password"
-                        type="password"
-                        placeholder="Min 6 characters"
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        data-testid="input-reg-password"
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-invite-code">Invite Code</Label>
-                      <Input
-                        id="reg-invite-code"
-                        placeholder="Enter your invite code"
-                        value={regInviteCode}
-                        onChange={(e) => setRegInviteCode(e.target.value.toUpperCase())}
-                        data-testid="input-reg-invite-code"
-                        autoComplete="off"
-                        className="font-mono tracking-wider"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Get an invite code from your instructor or a friend</p>
-                    </div>
-                    <Button type="submit" className="w-full h-11 text-sm font-medium" disabled={isPending} data-testid="button-register">
-                      {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                      Start Studying
-                    </Button>
-                  </form>
-                )}
-                <div className="mt-4 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setIsLogin(!isLogin)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    data-testid="button-toggle-auth"
-                  >
-                    {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Demo CTA */}
-            <div className="mt-4 text-center">
-              <Link href="/demo">
-                <button className="text-sm text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1.5">
-                  <Play className="w-3.5 h-3.5" />
-                  Try the demo before signing up
-                </button>
-              </Link>
-            </div>
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-white font-mono tracking-tight">Vector Prep</h1>
+            <p className="text-white/40 text-xs mt-1 font-mono">Ace your exams. Earn every point.</p>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function FeatureCard({ icon, title, description, color }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  color: string;
-}) {
-  return (
-    <div className="group rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 hover:border-primary/30 hover:shadow-md transition-all duration-200">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
-        {icon}
-      </div>
-      <div>
-        <h3 className="font-semibold text-sm">{title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{description}</p>
-      </div>
-    </div>
-  );
-}
+        {/* Google button */}
+        <button
+          onClick={handleGoogle}
+          disabled={googlePending}
+          className="btn-press w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl bg-white border-2 border-transparent shadow-[0_4px_0_0_rgba(255,255,255,0.25)] transition-all font-semibold text-[#0F0F0F] text-sm disabled:opacity-60"
+        >
+          {googlePending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+          )}
+          Continue with Google
+        </button>
 
-function MiniFeature({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-      <span className="text-xs text-muted-foreground">{label}</span>
+        {/* Email fallback toggle */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => setShowEmail(!showEmail)}
+            className="text-white/30 text-xs hover:text-white/60 transition-colors font-mono"
+          >
+            {showEmail ? "← Back" : "or sign in with email"}
+          </button>
+        </div>
+
+        {/* Email form - slides open */}
+        {showEmail && (
+          <form onSubmit={handleEmail} className="mt-4 space-y-3">
+            <Input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-xl"
+              data-testid="input-email"
+            />
+            <Input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-xl"
+              data-testid="input-password"
+            />
+            <button
+              type="submit"
+              disabled={isPending}
+              className="btn-press w-full py-3 rounded-2xl bg-[#FFD400] border-2 border-[#0F0F0F] shadow-[0_4px_0_0_#000000] font-bold font-mono text-[#0F0F0F] text-sm transition-all disabled:opacity-60"
+              data-testid="button-login"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Sign In →"}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

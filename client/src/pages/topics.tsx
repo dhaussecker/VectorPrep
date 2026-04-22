@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { Lock, CheckCircle2, Circle, ChevronRight, ArrowLeft, Zap } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Lock, CheckCircle2, ChevronRight, ArrowLeft, Zap, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { Course, Tool } from "@shared/schema";
 
 type ToolProgress = {
@@ -19,53 +18,71 @@ type ToolProgress = {
 
 type CourseData = { course: Course; tools: ToolProgress[] };
 
-function statusBadge(status: string, totalPercent: number) {
-  if (status === "locked") return { label: "Locked", variant: "secondary" as const };
-  if (totalPercent >= 100) return { label: "Mastered", variant: "default" as const };
-  if (totalPercent > 0) return { label: "In Progress", variant: "outline" as const };
-  return { label: "Not Started", variant: "secondary" as const };
-}
-
-function ToolCard({ tp }: { tp: ToolProgress }) {
+function ToolNode({ tp }: { tp: ToolProgress }) {
   const { tool, totalPercent, tasksCompleted, totalTasks } = tp;
   const isLocked = tool.status === "locked";
-  const sl = statusBadge(tool.status, totalPercent);
+  const isDone = totalPercent >= 100;
+  const isActive = !isLocked && !isDone && totalPercent > 0;
 
   return (
     <Link href={isLocked ? "#" : `/learn/${tool.courseId ?? ""}/${tool.id}`}>
-      <Card className={`transition-all ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:shadow-md hover:border-primary/30 cursor-pointer"}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${isLocked ? "bg-muted grayscale" : "bg-primary/10"}`}>
-              {isLocked ? <Lock className="w-4 h-4 text-muted-foreground" /> : tool.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <h3 className="font-semibold text-sm truncate">{tool.name}</h3>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {!isLocked && (
-                    <span className="text-xs font-medium text-amber-500 flex items-center gap-0.5">
-                      <Zap className="w-3 h-3" />{tool.xpReward}
-                    </span>
-                  )}
-                  <Badge variant={sl.variant} className="text-[10px] py-0">{sl.label}</Badge>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground truncate mb-2">{tool.description}</p>
-              {!isLocked && (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{tasksCompleted}/{totalTasks} tasks</span>
-                    <span>{Math.round(totalPercent)}%</span>
-                  </div>
-                  <Progress value={totalPercent} className="h-1" />
-                </div>
-              )}
-            </div>
-            {!isLocked && <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+      <div className={cn(
+        "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all",
+        isLocked
+          ? "opacity-50 cursor-not-allowed border-border bg-card"
+          : isDone
+          ? "border-primary/40 bg-primary/5 hover:border-primary/60 cursor-pointer"
+          : isActive
+          ? "border-[#22D3EE]/50 bg-[#22D3EE]/5 hover:border-[#22D3EE]/80 cursor-pointer shadow-[0_3px_0_0_#22D3EE30]"
+          : "border-border bg-card hover:border-primary/30 hover:shadow-hard cursor-pointer"
+      )}>
+        {/* Node indicator */}
+        <div className={cn(
+          "w-12 h-12 rounded-full border-2 flex items-center justify-center flex-shrink-0 font-mono",
+          isDone
+            ? "bg-primary border-primary text-primary-foreground"
+            : isActive
+            ? "bg-[#22D3EE]/20 border-[#22D3EE] text-[#22D3EE]"
+            : isLocked
+            ? "bg-muted border-border text-muted-foreground"
+            : "bg-background border-border text-muted-foreground"
+        )}>
+          {isDone ? (
+            <Check className="w-5 h-5" />
+          ) : isLocked ? (
+            <Lock className="w-4 h-4" />
+          ) : isActive ? (
+            <span className="text-sm font-bold">{Math.round(totalPercent)}%</span>
+          ) : (
+            <span className="text-lg">{tool.icon}</span>
+          )}
+        </div>
+
+        {/* Tool info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="font-bold text-sm truncate">{tool.name}</h3>
+            {!isLocked && (
+              <span className="text-xs font-mono font-bold text-[#FFD400] bg-[#FFD400]/10 border border-[#FFD400]/20 px-1.5 py-0.5 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                <Zap className="w-3 h-3" />{tool.xpReward}
+              </span>
+            )}
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-xs text-muted-foreground truncate mb-2">{tool.description}</p>
+          {!isLocked && (
+            <div className="flex items-center gap-2">
+              <Progress
+                value={totalPercent}
+                className="h-1.5 flex-1"
+                indicatorClassName={isDone ? "bg-primary" : isActive ? "bg-[#22D3EE]" : "bg-muted-foreground"}
+              />
+              <span className="text-[11px] text-muted-foreground font-mono flex-shrink-0">{tasksCompleted}/{totalTasks}</span>
+            </div>
+          )}
+        </div>
+
+        {!isLocked && <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+      </div>
     </Link>
   );
 }
@@ -78,7 +95,7 @@ function CoursePage({ courseId }: { courseId: string }) {
   if (isLoading) {
     return (
       <div className="p-6 space-y-3">
-        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)}
       </div>
     );
   }
@@ -91,36 +108,50 @@ function CoursePage({ courseId }: { courseId: string }) {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-transparent pointer-events-none" />
-        <div className="relative px-6 py-8 md:px-8">
-          <Link href="/classes">
-            <Button variant="ghost" size="sm" className="mb-4 -ml-2">
-              <ArrowLeft className="w-4 h-4 mr-1" /> All Courses
-            </Button>
-          </Link>
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-4xl">{course.icon}</span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{course.name}</h1>
-              <p className="text-muted-foreground text-sm mt-0.5">{course.description}</p>
-            </div>
+      {/* Course header */}
+      <div className="px-6 py-6 border-b border-border">
+        <Link href="/classes">
+          <Button variant="ghost" size="sm" className="mb-4 -ml-2">
+            <ArrowLeft className="w-4 h-4 mr-1" /> All Courses
+          </Button>
+        </Link>
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-4xl">{course.icon}</span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{course.name}</h1>
+            <p className="text-muted-foreground text-sm mt-0.5 font-mono">{course.description}</p>
           </div>
-          <div className="flex items-center gap-6">
-            <div>
-              <p className="text-xs text-muted-foreground">Progress</p>
-              <p className="text-lg font-bold">{Math.round(avgProgress)}%</p>
+        </div>
+
+        {/* Progress card */}
+        <div className="rounded-2xl bg-card border-2 border-[#0F0F0F] dark:border-white/10 p-4 shadow-hard">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex gap-6">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Progress</p>
+                <p className="text-xl font-bold font-mono">{Math.round(avgProgress)}%</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Mastered</p>
+                <p className="text-xl font-bold font-mono">{mastered}/{tools.length}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Mastered</p>
-              <p className="text-lg font-bold">{mastered}/{tools.length}</p>
-            </div>
+            {mastered === tools.length && tools.length > 0 && (
+              <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                ✓ COMPLETE
+              </span>
+            )}
           </div>
-          <Progress value={avgProgress} className="mt-3 h-2" />
+          <Progress value={avgProgress} className="h-2" indicatorClassName="bg-[#22D3EE]" />
         </div>
       </div>
-      <div className="px-6 md:px-8 py-6 space-y-3">
-        {tools.map((tp) => <ToolCard key={tp.tool.id} tp={tp} />)}
+
+      {/* Tool nodes list */}
+      <div className="px-6 py-6 space-y-3">
+        <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-muted-foreground mb-4">
+          {tools.length} Tools
+        </p>
+        {tools.map((tp) => <ToolNode key={tp.tool.id} tp={tp} />)}
       </div>
     </div>
   );
@@ -131,38 +162,39 @@ function AllCoursesPage() {
 
   if (isLoading) return (
     <div className="p-6 space-y-3">
-      {[1, 2].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+      {[1, 2].map((i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
     </div>
   );
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 py-8 md:px-8">
-        <h1 className="text-2xl font-bold tracking-tight mb-1">Your Toolkit</h1>
-        <p className="text-muted-foreground text-sm">Select a course to view its tools</p>
+      <div className="px-6 py-6 border-b border-border">
+        <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-muted-foreground">Select a course</p>
+        <h1 className="text-2xl font-bold tracking-tight mt-0.5">Your Toolkit</h1>
       </div>
-      <div className="px-6 md:px-8 pb-8 space-y-3">
+      <div className="px-6 py-6 space-y-3">
         {(courses ?? []).map((course) => (
           <Link key={course.id} href={course.locked ? "#" : `/classes/${course.id}`}>
-            <Card className={`transition-all ${course.locked ? "opacity-50 cursor-not-allowed" : "hover:shadow-md hover:border-primary/30 cursor-pointer"}`}>
-              <CardHeader className="p-4">
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">{course.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">{course.name}</CardTitle>
-                      {course.locked && (
-                        <Badge variant="secondary" className="flex items-center gap-1 text-[10px]">
-                          <Lock className="w-2.5 h-2.5" /> Coming Soon
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{course.description}</p>
-                  </div>
-                  {!course.locked && <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
+            <div className={cn(
+              "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all",
+              course.locked
+                ? "opacity-50 cursor-not-allowed border-border bg-card"
+                : "border-[#0F0F0F] dark:border-white/10 bg-card hover:bg-muted cursor-pointer shadow-hard active:shadow-none active:translate-y-0.5"
+            )}>
+              <span className={cn("text-3xl flex-shrink-0", course.locked && "grayscale")}>{course.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold">{course.name}</h3>
+                  {course.locked && (
+                    <span className="text-[10px] font-mono font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                      <Lock className="w-2.5 h-2.5" /> SOON
+                    </span>
+                  )}
                 </div>
-              </CardHeader>
-            </Card>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 font-mono">{course.description}</p>
+              </div>
+              {!course.locked && <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
+            </div>
           </Link>
         ))}
       </div>

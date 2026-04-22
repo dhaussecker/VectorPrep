@@ -37,20 +37,21 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-md bg-primary">
-            <GraduationCap className="w-5 h-5 text-primary-foreground" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FFD400] border-2 border-[#0F0F0F] shadow-hard-sm flex-shrink-0">
+            <span className="text-sm font-black font-mono text-[#0F0F0F] tracking-tight">VP</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold" data-testid="text-app-name">Vector Prep</span>
-            <span className="text-xs text-muted-foreground">Exam Prep</span>
+            <span className="text-sm font-bold font-mono tracking-tight" data-testid="text-app-name">Vector Prep</span>
+            <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-[0.12em]">Exam Prep</span>
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-[0.15em]">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
@@ -60,7 +61,10 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={isActive}
-                      className={isActive ? "bg-sidebar-accent" : ""}
+                      className={isActive
+                        ? "text-[#FFD400] bg-sidebar-accent font-semibold border-l-2 border-[#FFD400] rounded-l-none"
+                        : "font-medium"
+                      }
                     >
                       <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
                         <item.icon className="w-4 h-4" />
@@ -73,16 +77,20 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
         {user?.isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-[0.15em]">Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
                     data-active={location === "/admin"}
-                    className={location === "/admin" ? "bg-sidebar-accent" : ""}
+                    className={location === "/admin"
+                      ? "text-[#FFD400] bg-sidebar-accent font-semibold border-l-2 border-[#FFD400] rounded-l-none"
+                      : "font-medium"
+                    }
                   >
                     <Link href="/admin" data-testid="link-nav-admin">
                       <Settings className="w-4 h-4" />
@@ -95,14 +103,15 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="p-4 space-y-3">
+
+      <SidebarFooter className="p-4 border-t border-sidebar-border space-y-3">
         <div className="flex items-center gap-3">
-          <Avatar className="w-9 h-9">
-            <AvatarFallback className="bg-primary/20 text-sm">{initials}</AvatarFallback>
+          <Avatar className="w-9 h-9 border-2 border-sidebar-border">
+            <AvatarFallback className="bg-primary/20 text-sm font-mono font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-sm font-medium truncate" data-testid="text-user-name">{user?.displayName}</span>
-            <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
+            <span className="text-sm font-semibold truncate" data-testid="text-user-name">{user?.displayName}</span>
+            <span className="text-[11px] text-muted-foreground truncate font-mono">{user?.email}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">

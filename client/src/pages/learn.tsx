@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen, Lock, CheckCircle2, Circle, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Lightbulb, BookOpen, Lock, CheckCircle2, Circle, Zap, Play, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,49 @@ import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
 import type { Tool, ToolContentItem, Course } from "@shared/schema";
+
+function toEmbedUrl(url: string): string {
+  // Convert YouTube watch/short URLs to embed format
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com") && u.pathname === "/watch") {
+      return `https://www.youtube.com/embed/${u.searchParams.get("v")}?autoplay=1`;
+    }
+    if (u.hostname === "youtu.be") {
+      return `https://www.youtube.com/embed/${u.pathname.slice(1)}?autoplay=1`;
+    }
+  } catch {}
+  return url;
+}
+
+function VideoModal({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl rounded-2xl overflow-hidden border-2 border-[#0F0F0F] shadow-[0_8px_0_0_#0F0F0F] bg-black"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <div className="aspect-video">
+          <iframe
+            src={toEmbedUrl(url)}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type LearnData = {
   tool: Tool;
@@ -37,15 +80,15 @@ function LearnCourseSelector() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 md:px-8 py-6">
+      <div className="px-5 py-6">
         <h1 className="text-2xl font-bold tracking-tight mb-1">Learn Mode</h1>
         <p className="text-muted-foreground text-sm mb-6">Select a course to start studying</p>
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {[1, 2].map((i) => <Card key={i}><CardContent className="p-5"><Skeleton className="h-20 w-full" /></CardContent></Card>)}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {courses?.map((course) =>
               course.locked ? (
                 <Card key={course.id} className="opacity-50 border-dashed">
@@ -86,7 +129,7 @@ function LearnToolSelector({ courseId }: { courseId: string }) {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 md:px-8 py-6">
+      <div className="px-5 py-6">
         <div className="flex items-center gap-3 mb-6">
           <Link href="/learn">
             <Button variant="ghost" size="icon"><ChevronLeft className="w-4 h-4" /></Button>
@@ -140,6 +183,7 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showQuickCheck, setShowQuickCheck] = useState(false);
   const [quickCheckResult, setQuickCheckResult] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<LearnData>({
     queryKey: ["/api/learn", toolId],
@@ -175,7 +219,7 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
   if (isLoading) {
     return (
-      <div className="flex-1 overflow-auto px-6 md:px-8 py-6">
+      <div className="flex-1 overflow-auto px-5 py-6">
         <Skeleton className="h-8 w-48 mb-4" />
         <Card><CardContent className="p-8"><Skeleton className="h-48 w-full" /></CardContent></Card>
       </div>
@@ -184,7 +228,7 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
   if (!data) {
     return (
-      <div className="flex-1 overflow-auto px-6 md:px-8 py-6">
+      <div className="flex-1 overflow-auto px-5 py-6">
         <p className="text-muted-foreground">Tool not found.</p>
         <Link href={`/learn/${courseId}`}>
           <Button variant="outline" className="mt-4"><ChevronLeft className="w-4 h-4" />Back</Button>
@@ -199,30 +243,30 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 md:px-8 py-6">
+      <div className="px-5 py-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-3 mb-4 flex-wrap border-b border-border pb-4">
           <Link href={`/learn/${courseId}`}>
             <Button variant="ghost" size="icon"><ChevronLeft className="w-4 h-4" /></Button>
           </Link>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xl">{tool.icon}</span>
-              <h1 className="text-xl font-bold truncate">{tool.name}</h1>
-              <Badge variant="outline" className="flex items-center gap-1 text-amber-500">
+              <h1 className="text-xl font-bold tracking-tight truncate">{tool.name}</h1>
+              <span className="text-xs font-mono font-bold text-[#FFD400] bg-[#FFD400]/10 border border-[#FFD400]/20 px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
                 <Zap className="w-3 h-3" />{tool.xpReward} XP
-              </Badge>
+              </span>
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <Progress value={progressPercent} className="h-1.5 flex-1 max-w-xs" />
-              <span className="text-xs text-muted-foreground">{completedCount}/{content.length} content</span>
+            <div className="flex items-center gap-3 mt-2">
+              <Progress value={progressPercent} className="h-2 flex-1 max-w-xs" indicatorClassName="bg-[#22D3EE]" />
+              <span className="text-[11px] text-muted-foreground font-mono">{completedCount}/{content.length} done</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 grid-cols-1 gap-6">
           {/* Content panel */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="col-span-1 space-y-4">
             {content.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
@@ -232,14 +276,28 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
               </Card>
             ) : currentContent ? (
               <>
+                {videoUrl && <VideoModal url={videoUrl} onClose={() => setVideoUrl(null)} />}
+
                 <div className="flex items-center justify-between gap-2">
-                  <Badge variant="outline">Content {currentIndex + 1} of {content.length}</Badge>
-                  {currentContent.completed && (
-                    <Badge variant="default"><Check className="w-3 h-3 mr-1" />Completed</Badge>
-                  )}
+                  <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+                    {currentIndex + 1} / {content.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {currentContent.url && (
+                      <button
+                        onClick={() => setVideoUrl(currentContent.url!)}
+                        className="flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1.5 rounded-full bg-[#22D3EE]/10 border border-[#22D3EE]/30 text-[#22D3EE] hover:bg-[#22D3EE]/20 transition-colors"
+                      >
+                        <Play className="w-3 h-3" /> Watch
+                      </button>
+                    )}
+                    {currentContent.completed && (
+                      <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">✓ Done</span>
+                    )}
+                  </div>
                 </div>
 
-                <Card>
+                <Card className="border-2 border-[#0F0F0F] dark:border-white/10 shadow-hard">
                   <CardHeader className="p-5 pb-3">
                     <CardTitle className="text-lg">{currentContent.title}</CardTitle>
                   </CardHeader>
@@ -289,9 +347,9 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
           {/* Tasks panel */}
           <div className="space-y-4">
-            <Card>
+            <Card className="border-2 border-[#0F0F0F] dark:border-white/10 shadow-hard">
               <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm">Tasks</CardTitle>
+                <CardTitle className="text-xs font-mono uppercase tracking-[0.15em]">Tasks</CardTitle>
                 <p className="text-xs text-muted-foreground">Complete tasks to earn XP</p>
               </CardHeader>
               <CardContent className="p-4 pt-2">
@@ -306,13 +364,13 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
                         key={task.id}
                         onClick={() => !task.completed && completeTaskMutation.mutate(task.id)}
                         disabled={task.completed || completeTaskMutation.isPending}
-                        className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-colors text-xs ${task.completed ? "bg-primary/5 border-primary/20 opacity-70" : "hover:bg-muted/50 hover:border-primary/30 cursor-pointer"}`}
+                        className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border-2 text-left transition-colors text-xs ${task.completed ? "bg-primary/5 border-primary/20 opacity-60" : "hover:bg-muted/50 hover:border-primary/40 border-border cursor-pointer"}`}
                       >
                         {task.completed
                           ? <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                           : <Circle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />}
                         <span className={`flex-1 leading-snug ${task.completed ? "line-through text-muted-foreground" : ""}`}>{task.label}</span>
-                        <span className="flex items-center gap-0.5 text-amber-500 font-semibold flex-shrink-0">
+                        <span className="flex items-center gap-0.5 font-bold font-mono flex-shrink-0 text-[#FFD400]">
                           <Zap className="w-3 h-3" />{task.xp}
                         </span>
                       </button>
@@ -324,7 +382,9 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
             {/* Jump to practice */}
             <Link href={`/practice/${courseId}/${toolId}`}>
-              <Button variant="outline" className="w-full">Practice Questions</Button>
+              <Button variant="outline" className="w-full border-2 border-[#0F0F0F] dark:border-white/10 shadow-hard-sm font-mono uppercase tracking-wide text-xs">
+                Practice Questions →
+              </Button>
             </Link>
           </div>
         </div>

@@ -8,6 +8,7 @@ import type { Session } from "@supabase/supabase-js";
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
+  loginWithGoogle: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string, inviteCode: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -70,6 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const loginWithGoogle = useCallback(async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     await loginMutation.mutateAsync({ email, password });
   }, [loginMutation]);
@@ -83,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [logoutMutation]);
 
   return (
-    <AuthContext.Provider value={{ user: session ? (user ?? null) : null, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user: session ? (user ?? null) : null, isLoading, loginWithGoogle, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
