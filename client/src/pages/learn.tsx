@@ -117,31 +117,35 @@ function SuccessOverlay({
   );
 }
 
-// ─── Video panel with animated word highlights ────────────────────────────────
+// ─── Speaking panel — always shown, video optional ───────────────────────────
 
 function SpeakingPanel({
   videoUrl,
   title,
   videoRef,
 }: {
-  videoUrl: string;
+  videoUrl?: string | null;
   title: string;
   videoRef: React.RefObject<HTMLVideoElement>;
 }) {
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const [playing, setPlaying] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const words = title.split(/\s+/).filter(Boolean).slice(0, 8);
 
+  // Auto-start word animation after short delay regardless of video
   useEffect(() => {
-    if (!playing) {
-      setActiveIdx(-1);
-      return;
-    }
-    const interval = setInterval(() => {
-      setActiveIdx((i) => (i + 1) % words.length);
-    }, 680);
-    return () => clearInterval(interval);
-  }, [playing, words.length]);
+    setActiveIdx(0);
+    let interval: ReturnType<typeof setInterval>;
+    const start = setTimeout(() => {
+      interval = setInterval(() => {
+        setActiveIdx((i) => (i + 1) % Math.max(words.length, 1));
+      }, 700);
+    }, 600);
+    return () => {
+      clearTimeout(start);
+      clearInterval(interval);
+    };
+  }, [title]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -150,48 +154,63 @@ function SpeakingPanel({
 
   return (
     <div className="rounded-3xl border-2 border-foreground overflow-hidden shadow-hard bg-card">
-      <div className="flex items-stretch min-h-[112px]">
-        {/* Video side */}
-        <div
-          className="relative w-28 flex-shrink-0 bg-muted cursor-pointer"
-          onClick={togglePlay}
-        >
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            autoPlay
-            loop
-            playsInline
-            className="w-full h-full object-cover absolute inset-0"
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-          />
-          {!playing && (
-            <div className="absolute inset-0 flex items-center justify-center bg-foreground/25 z-10">
-              <div className="w-10 h-10 rounded-full bg-background/90 flex items-center justify-center shadow-hard">
-                <Play className="w-5 h-5 text-foreground ml-0.5" />
+      <style>{`
+        @keyframes tutor-bob {
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        .tutor-bob { animation: tutor-bob 2s ease-in-out infinite; }
+      `}</style>
+      <div className="flex items-stretch min-h-[120px]">
+
+        {/* Left: video OR animated tutor icon */}
+        {videoUrl ? (
+          <div
+            className="relative w-28 flex-shrink-0 bg-muted cursor-pointer"
+            onClick={togglePlay}
+          >
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+              onPlay={() => setVideoPlaying(true)}
+              onPause={() => setVideoPlaying(false)}
+            />
+            {!videoPlaying && (
+              <div className="absolute inset-0 flex items-center justify-center bg-foreground/20 z-10">
+                <div className="w-10 h-10 rounded-full bg-background/90 flex items-center justify-center shadow-hard">
+                  <Play className="w-5 h-5 text-foreground ml-0.5" />
+                </div>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="w-28 flex-shrink-0 bg-primary/10 flex items-center justify-center">
+            <div className="tutor-bob flex flex-col items-center gap-1">
+              <span className="text-4xl">🧑‍🏫</span>
+              <span className="text-[9px] font-mono text-primary/60 uppercase tracking-wide">Tutor</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Animated word chips */}
         <div className="flex-1 flex flex-wrap gap-2 content-center justify-center p-4">
           {words.map((word, i) => (
             <span
               key={i}
-              className={`inline-block px-3 py-1.5 rounded-xl font-mono font-bold text-sm transition-all duration-200 ${
-                i === activeIdx && playing
-                  ? "bg-primary text-primary-foreground scale-110 shadow-[0_0_16px_hsl(var(--primary)/0.55)]"
+              className={`inline-block px-3 py-1.5 rounded-xl font-mono font-bold text-sm transition-all duration-250 ${
+                i === activeIdx
+                  ? "bg-primary text-primary-foreground scale-110 shadow-[0_0_16px_hsl(var(--primary)/0.5)]"
                   : "bg-muted text-muted-foreground scale-100"
               }`}
             >
               {word}
             </span>
           ))}
-          {words.length === 0 && (
-            <span className="text-xs text-muted-foreground font-mono">Tap video to play</span>
-          )}
         </div>
       </div>
     </div>
@@ -493,8 +512,8 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
             </div>
           )}
 
-          {/* Video panel with animated word highlights */}
-          {currentContent?.tutorVideoUrl && (
+          {/* Speaking panel — always shown, video optional */}
+          {currentContent && (
             <SpeakingPanel
               videoUrl={currentContent.tutorVideoUrl}
               title={currentContent.title}
