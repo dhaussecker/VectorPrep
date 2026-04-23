@@ -12,9 +12,10 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("theme") as Theme) || "dark";
+      const saved = localStorage.getItem("oq-theme");
+      return saved === "dark" ? "dark" : "light";
     }
-    return "dark";
+    return "light";
   });
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("theme", theme);
+    localStorage.setItem("oq-theme", theme);
   }, [theme]);
 
   const toggleTheme = () => {

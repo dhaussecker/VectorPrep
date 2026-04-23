@@ -1,4 +1,5 @@
 import { useLocation, Link } from "wouter";
+import { OQLogo } from "@/components/oq-logo";
 import { LayoutDashboard, BookOpen, ClipboardCheck, BarChart3, GraduationCap, LogOut, Sun, Moon, Settings, FileText } from "lucide-react";
 import {
   Sidebar,
@@ -39,9 +40,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FFD400] border-2 border-[#0F0F0F] shadow-hard-sm flex-shrink-0">
-            <span className="text-sm font-black font-mono text-[#0F0F0F] tracking-tight">VP</span>
-          </div>
+          <OQLogo size={40} />
           <div className="flex flex-col">
             <span className="text-sm font-bold font-mono tracking-tight" data-testid="text-app-name">OnQuest</span>
             <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-[0.12em]">Exam Prep</span>

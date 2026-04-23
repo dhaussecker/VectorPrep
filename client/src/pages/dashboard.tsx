@@ -87,7 +87,7 @@ export default function Dashboard() {
         </div>
 
         {/* XP level card — yellow with hard shadow */}
-        <div className="rounded-2xl bg-[#FFD400] border-2 border-[#0F0F0F] p-4 shadow-hard mb-4">
+        <div className="rounded-2xl bg-[#FFD400] border-2 border-foreground p-4 shadow-hard mb-4">
           {isLoading ? (
             <Skeleton className="h-16 w-full bg-[#0F0F0F]/10" />
           ) : (
@@ -127,9 +127,9 @@ export default function Dashboard() {
         {/* Continue Learning CTA */}
         {nextTool && (
           <Link href={`/learn/${nextTool.tool.courseId ?? ""}/${nextTool.tool.id}`}>
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-primary border-2 border-[#0F0F0F] shadow-hard cursor-pointer active:shadow-none active:translate-y-1 transition-all group">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-primary border-2 border-foreground shadow-hard cursor-pointer active:shadow-none active:translate-y-1 transition-all group">
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-primary-foreground/70">Continue Learning</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-primary-foreground/70">⚔️ Continue Quest</p>
                 <p className="text-lg font-bold text-primary-foreground mt-0.5">{nextTool.tool.name}</p>
                 {nextTool.totalPercent > 0 && (
                   <div className="mt-2 flex items-center gap-2">
@@ -161,7 +161,7 @@ export default function Dashboard() {
         {/* Toolkit */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted-foreground">Your Toolkit</p>
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted-foreground">Active Quests</p>
             <Link href="/classes">
               <Button variant="ghost" size="sm" className="text-xs h-7 px-2">
                 View All <ArrowRight className="w-3 h-3 ml-1" />
@@ -199,7 +199,7 @@ function StatCard({ icon, label, value, iconColor, isLoading }: {
   isLoading: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-card border-2 border-[#0F0F0F] dark:border-white/10 shadow-hard gap-1">
+    <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-card border-2 border-foreground shadow-hard gap-1">
       <div className={iconColor}>{icon}</div>
       {isLoading
         ? <Skeleton className="h-5 w-10 mt-1" />
@@ -218,7 +218,7 @@ function CourseCard({ course, tools }: { course: Course; tools: ToolProgress[] }
   const displayTools = tools.slice(0, 5);
 
   return (
-    <div className="rounded-2xl border-2 border-[#0F0F0F] dark:border-white/10 overflow-hidden shadow-hard">
+    <div className="rounded-2xl border-2 border-foreground overflow-hidden shadow-hard">
       {/* Course header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-card border-b border-border">
         <span className="text-xl flex-shrink-0">{course.icon}</span>

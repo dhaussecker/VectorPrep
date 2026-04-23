@@ -5,8 +5,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/theme-provider";
-import { LayoutDashboard, ClipboardCheck, BookOpen, Loader2, LogOut } from "lucide-react";
+import { LayoutDashboard, Swords, Zap, Loader2, LogOut, Sun, Moon } from "lucide-react";
 import { useState } from "react";
+import { useTheme } from "@/components/theme-provider";
+import { OQLogo } from "@/components/oq-logo";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import LandingPage from "@/pages/landing";
@@ -21,8 +23,8 @@ import DemoPage from "@/pages/demo";
 
 const navItems = [
   { label: "Home", url: "/", icon: LayoutDashboard },
-  { label: "Classes", url: "/classes", icon: BookOpen },
-  { label: "Practice", url: "/practice", icon: ClipboardCheck },
+  { label: "Quests", url: "/classes", icon: Swords },
+  { label: "Challenge", url: "/practice", icon: Zap },
 ];
 
 function BottomNav() {
@@ -67,6 +69,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, isLoading, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [location] = useLocation();
   const [showAuth, setShowAuth] = useState(false);
 
@@ -76,9 +79,7 @@ function AuthenticatedApp() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#FFD400] border-2 border-foreground flex items-center justify-center shadow-[0_3px_0_0_hsl(var(--foreground))]">
-            <span className="text-lg font-black font-mono text-foreground">OQ</span>
-          </div>
+          <OQLogo size={48} />
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       </div>
@@ -95,14 +96,17 @@ function AuthenticatedApp() {
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card sticky top-0 z-40 flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#FFD400] border-2 border-foreground flex items-center justify-center shadow-[0_2px_0_0_hsl(var(--foreground))]">
-            <span className="text-xs font-black font-mono text-foreground">OQ</span>
-          </div>
-          <span className="text-sm font-bold font-mono text-foreground tracking-tight">OnQuest</span>
+          <OQLogo size={30} />
+          <span className="text-sm font-black font-mono text-foreground tracking-tight">OnQuest</span>
         </div>
-        <button onClick={logout} className="text-muted-foreground hover:text-foreground transition-colors p-1">
-          <LogOut className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleTheme} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <button onClick={logout} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       {/* Scrollable content */}
