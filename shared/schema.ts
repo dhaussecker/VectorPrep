@@ -63,6 +63,7 @@ export const toolContent = pgTable("tool_content", {
   url: text("url"),
   imageUrl: text("image_url"),
   tutorVideoUrl: text("tutor_video_url"),
+  captions: jsonb("captions"), // [{t: number, text: string}]
   orderIndex: integer("order_index").notNull().default(0),
 });
 
