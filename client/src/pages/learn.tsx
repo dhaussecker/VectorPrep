@@ -126,16 +126,14 @@ function getYouTubeId(url: string): string | null {
 
 const WORD_COLORS = ["#FFD400", "#22D3EE", "#4ade80", "#f97316", "#a855f7", "#ec4899"];
 
-// ─── Speaking panel — full-width video + giant karaoke captions ───────────────
+// ─── Circular tutor bubble + karaoke captions ─────────────────────────────────
 
-function SpeakingPanel({
+function TutorBubble({
   videoUrl,
-  title,
   captions,
   videoRef,
 }: {
   videoUrl?: string | null;
-  title: string;
   captions?: Caption[] | null;
   videoRef: React.RefObject<HTMLVideoElement>;
 }) {
@@ -143,46 +141,40 @@ function SpeakingPanel({
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [timerWordIdx, setTimerWordIdx] = useState(0);
 
-  // Resolve which caption text to show based on video time (or title fallback)
   const sortedCaptions = captions && captions.length > 0
     ? [...captions].sort((a, b) => a.t - b.t)
     : null;
 
-  const activeCaptionText = sortedCaptions
-    ? (sortedCaptions.filter(c => c.t <= videoTime).pop()?.text ?? sortedCaptions[0]?.text ?? title)
-    : title;
-
-  const words = activeCaptionText.split(/\s+/).filter(Boolean);
-
-  // Find next caption start time to compute current segment duration
+  // Active caption text — only from captions data, never from title
   const activeCaptionIdx = sortedCaptions
     ? sortedCaptions.findLastIndex(c => c.t <= videoTime)
     : -1;
+  const activeCaptionText = sortedCaptions && activeCaptionIdx >= 0
+    ? sortedCaptions[activeCaptionIdx].text
+    : sortedCaptions?.[0]?.text ?? null;
+
   const nextCaptionT = sortedCaptions && activeCaptionIdx >= 0
     ? sortedCaptions[activeCaptionIdx + 1]?.t
     : undefined;
 
-  // Per-word interval within the active caption segment
-  const wordIntervalMs = nextCaptionT !== undefined
-    ? Math.max(200, ((nextCaptionT - (sortedCaptions![activeCaptionIdx]?.t ?? 0)) * 1000) / Math.max(words.length, 1))
+  const words = activeCaptionText ? activeCaptionText.split(/\s+/).filter(Boolean) : [];
+
+  const wordIntervalMs = nextCaptionT !== undefined && sortedCaptions && activeCaptionIdx >= 0
+    ? Math.max(200, ((nextCaptionT - sortedCaptions[activeCaptionIdx].t) * 1000) / Math.max(words.length, 1))
     : 500;
 
-  // Timer-based word cycling (used when video is paused OR no video)
   useEffect(() => {
+    if (!activeCaptionText) return;
     setTimerWordIdx(0);
-    const iv = setInterval(() => {
-      setTimerWordIdx(i => (i + 1) % Math.max(words.length, 1));
-    }, wordIntervalMs);
+    const iv = setInterval(() => setTimerWordIdx(i => (i + 1) % Math.max(words.length, 1)), wordIntervalMs);
     return () => clearInterval(iv);
   }, [activeCaptionText, wordIntervalMs]);
 
-  // If video is playing, sync word idx to video sub-timing
   const activeWordIdx = videoPlaying && sortedCaptions && activeCaptionIdx >= 0
-    ? (() => {
-        const segStart = sortedCaptions[activeCaptionIdx].t;
-        const elapsed = videoTime - segStart;
-        return Math.min(Math.floor(elapsed / (wordIntervalMs / 1000)), words.length - 1);
-      })()
+    ? Math.min(
+        Math.floor((videoTime - sortedCaptions[activeCaptionIdx].t) / (wordIntervalMs / 1000)),
+        words.length - 1
+      )
     : timerWordIdx;
 
   const togglePlay = () => {
@@ -190,79 +182,83 @@ function SpeakingPanel({
     videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
   };
 
+  const ytId = videoUrl ? getYouTubeId(videoUrl) : null;
+
   return (
-    <div className="rounded-3xl border-2 border-foreground overflow-hidden shadow-hard bg-card">
+    <div className="flex flex-col items-center gap-4">
       <style>{`
         @keyframes tutor-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         .tutor-bob { animation: tutor-bob 1.8s ease-in-out infinite; }
-        @keyframes word-pop { 0%{transform:scale(0.8);opacity:0.4} 60%{transform:scale(1.18)} 100%{transform:scale(1);opacity:1} }
-        .word-active { animation: word-pop 0.25s cubic-bezier(.2,.9,.2,1) both; }
+        @keyframes word-pop { 0%{transform:scale(0.75) rotate(-4deg);opacity:0.3} 60%{transform:scale(1.2) rotate(1deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
+        .word-active { animation: word-pop 0.22s cubic-bezier(.2,.9,.2,1) both; }
+        @keyframes ring-pulse { 0%,100%{box-shadow:0 0 0 0 #FFD40066} 50%{box-shadow:0 0 0 8px #FFD40000} }
+        .ring-pulse { animation: ring-pulse 1.6s ease-in-out infinite; }
       `}</style>
 
-      {/* Video or tutor icon */}
-      {videoUrl ? (() => {
-        const ytId = getYouTubeId(videoUrl);
-        if (ytId) {
-          return (
-            <div className="relative w-full bg-black" style={{ paddingBottom: "56.25%" }}>
-              <iframe
-                className="absolute inset-0 w-full h-full"
-                src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          );
-        }
-        return (
-          <div className="relative w-full bg-black cursor-pointer" onClick={togglePlay}>
-            <video
-              ref={videoRef}
-              src={videoUrl}
-              autoPlay
-              loop
-              playsInline
-              className="w-full max-h-[56vw] object-contain"
-              onPlay={() => setVideoPlaying(true)}
-              onPause={() => setVideoPlaying(false)}
-              onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
-            />
-            {!videoPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-10">
-                <div className="w-16 h-16 rounded-full bg-background/90 flex items-center justify-center shadow-hard">
-                  <Play className="w-8 h-8 text-foreground ml-1" />
-                </div>
+      {/* Circle avatar */}
+      {ytId ? (
+        <div className="w-full rounded-3xl overflow-hidden border-2 border-foreground shadow-hard bg-black" style={{ paddingBottom: "56.25%", position: "relative" }}>
+          <iframe
+            className="absolute inset-0 w-full h-full"
+            src={`https://www.youtube.com/embed/${ytId}?rel=0`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      ) : videoUrl ? (
+        <div
+          className={`relative cursor-pointer flex-shrink-0 ${videoPlaying ? "ring-pulse" : ""}`}
+          style={{ width: 148, height: 148 }}
+          onClick={togglePlay}
+        >
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            playsInline
+            className="w-full h-full object-cover rounded-full border-4 border-[#FFD400] shadow-hard"
+            onPlay={() => setVideoPlaying(true)}
+            onPause={() => setVideoPlaying(false)}
+            onEnded={() => setVideoPlaying(false)}
+            onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
+          />
+          {!videoPlaying && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30">
+              <div className="w-12 h-12 rounded-full bg-background/90 flex items-center justify-center shadow-hard">
+                <Play className="w-6 h-6 text-foreground ml-0.5" />
               </div>
-            )}
-          </div>
-        );
-      })() : (
-        <div className="w-full py-10 bg-primary/10 flex items-center justify-center">
-          <div className="tutor-bob"><span className="text-7xl">🧑‍🏫</span></div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className="flex items-center justify-center rounded-full border-4 border-[#FFD400] bg-primary/10 flex-shrink-0"
+          style={{ width: 148, height: 148 }}
+        >
+          <div className="tutor-bob"><span className="text-6xl">🧑‍🏫</span></div>
         </div>
       )}
 
-      {/* Giant karaoke word display */}
-      <div className="flex flex-wrap gap-x-3 gap-y-2 justify-center px-5 py-5">
-        {words.map((word, i) => {
-          const isActive = i === activeWordIdx;
-          const color = WORD_COLORS[i % WORD_COLORS.length];
-          return (
-            <span
-              key={`${activeCaptionText}-${i}`}
-              className={`font-black text-2xl leading-tight transition-all duration-150 select-none ${isActive ? "word-active" : ""}`}
-              style={{
-                color: isActive ? color : "hsl(var(--foreground)/0.25)",
-                textShadow: isActive ? `0 0 24px ${color}88` : "none",
-                transform: isActive ? "scale(1.15)" : "scale(1)",
-                display: "inline-block",
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
-      </div>
+      {/* Karaoke words — ONLY shown when captions exist */}
+      {words.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-2 justify-center px-2">
+          {words.map((word, i) => {
+            const isActive = i === activeWordIdx;
+            const color = WORD_COLORS[i % WORD_COLORS.length];
+            return (
+              <span
+                key={`${activeCaptionText}-${i}`}
+                className={`font-black text-2xl leading-tight select-none inline-block transition-none ${isActive ? "word-active" : ""}`}
+                style={{
+                  color: isActive ? color : "hsl(var(--foreground)/0.2)",
+                  textShadow: isActive ? `0 0 28px ${color}99` : "none",
+                }}
+              >
+                {word}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -412,8 +408,8 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
 
   useEffect(() => {
     if (videoRef.current) {
+      videoRef.current.pause();
       videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
     }
   }, [currentIndex, currentContent?.tutorVideoUrl]);
 
@@ -555,11 +551,10 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
             </div>
           )}
 
-          {/* Speaking panel — always shown, video optional */}
+          {/* Tutor bubble — circular video or avatar + karaoke */}
           {currentContent && (
-            <SpeakingPanel
+            <TutorBubble
               videoUrl={currentContent.tutorVideoUrl}
-              title={currentContent.title}
               captions={currentContent.captions as Caption[] | null}
               videoRef={videoRef}
             />
