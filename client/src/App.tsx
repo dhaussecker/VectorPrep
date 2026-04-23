@@ -109,8 +109,8 @@ function AuthenticatedApp() {
         </div>
       </header>
 
-      {/* Scrollable content */}
-      <main className="flex-1 overflow-auto pb-20">
+      {/* Scrollable content — quest map uses its own internal snap-scroll */}
+      <main className={`flex-1 ${location === "/classes" ? "overflow-hidden" : "overflow-auto pb-20"}`}>
         <Router />
       </main>
 
