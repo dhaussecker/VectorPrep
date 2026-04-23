@@ -10,15 +10,6 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "All fields are required" });
       }
 
-      if (!inviteCode) {
-        return res.status(400).json({ message: "Invite code is required" });
-      }
-
-      const invite = await storage.getInviteCode(inviteCode.trim().toUpperCase());
-      if (!invite || invite.used) {
-        return res.status(400).json({ message: "Invalid or already used invite code" });
-      }
-
       const existing = await storage.getUserByEmail(email);
       if (existing) {
         return res.status(400).json({ message: "Email already registered" });
@@ -39,8 +30,6 @@ export function setupAuth(app: Express) {
         email,
         displayName,
       });
-
-      await storage.redeemInviteCode(invite.code, user.id);
 
       return res.json(user);
     } catch (err) {
