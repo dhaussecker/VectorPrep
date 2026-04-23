@@ -94,10 +94,10 @@ export default function AuthPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
           <div className="w-16 h-16 rounded-2xl bg-[#FFD400] border-2 border-white/20 shadow-[0_4px_0_0_rgba(255,255,255,0.15)] flex items-center justify-center">
-            <span className="text-2xl font-black font-mono text-[#0F0F0F] tracking-tighter">VP</span>
+            <span className="text-2xl font-black font-mono text-[#0F0F0F] tracking-tighter">OQ</span>
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-white font-mono tracking-tight">Vector Prep</h1>
+            <h1 className="text-xl font-bold text-white font-mono tracking-tight">OnQuest</h1>
             <p className="text-white/40 text-xs mt-1 font-mono">Ace your exams. Earn every point.</p>
           </div>
         </div>

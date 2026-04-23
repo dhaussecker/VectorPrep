@@ -862,7 +862,29 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
   const [quickCheck, setQuickCheck] = useState(defaultValues?.quickCheck || "");
   const [quickCheckAnswer, setQuickCheckAnswer] = useState(defaultValues?.quickCheckAnswer || "");
   const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
+  const [tutorVideoUrl, setTutorVideoUrl] = useState(defaultValues?.tutorVideoUrl || "");
+  const [videoUploading, setVideoUploading] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVideoUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("tutor-videos").upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("tutor-videos").getPublicUrl(path);
+      setTutorVideoUrl(publicUrl);
+    } catch (err: any) {
+      alert(`Video upload failed: ${err?.message ?? "Unknown error"}. Make sure a public Supabase storage bucket called "tutor-videos" exists.`);
+    } finally {
+      setVideoUploading(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  };
   const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const insertAtCursor = useInsertAtCursor(textareaRef, content, setContent);
 
@@ -1001,10 +1023,48 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
               <Input value={quickCheckAnswer} onChange={(e) => setQuickCheckAnswer(e.target.value)} placeholder="Expected answer..." data-testid="input-card-quick-answer" />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label>Tutor Video (optional)</Label>
+              <Badge variant="outline" className="text-[10px]">Circular bubble in lesson</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Upload a short talking-head video. It plays as a circular bubble while students read this card.
+              Requires a public Supabase storage bucket named <code className="bg-muted px-1 rounded">tutor-videos</code>.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                value={tutorVideoUrl}
+                onChange={(e) => setTutorVideoUrl(e.target.value)}
+                placeholder="https://... or upload below"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={videoUploading}
+              >
+                {videoUploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
+                Upload
+              </Button>
+              {tutorVideoUrl && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setTutorVideoUrl("")}>
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
+            {tutorVideoUrl && (
+              <video src={tutorVideoUrl} className="w-20 h-20 rounded-full object-cover border-2 border-primary mt-1" muted loop autoPlay playsInline />
+            )}
+            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSubmit({ title: cardTitle, content, formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
+          <Button onClick={() => onSubmit({ title: cardTitle, content, formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, tutorVideoUrl: tutorVideoUrl || null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
           </Button>
         </DialogFooter>

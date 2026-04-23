@@ -43,7 +43,7 @@ export function AppSidebar() {
             <span className="text-sm font-black font-mono text-[#0F0F0F] tracking-tight">VP</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold font-mono tracking-tight" data-testid="text-app-name">Vector Prep</span>
+            <span className="text-sm font-bold font-mono tracking-tight" data-testid="text-app-name">OnQuest</span>
             <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-[0.12em]">Exam Prep</span>
           </div>
         </div>

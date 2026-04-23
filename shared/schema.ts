@@ -62,6 +62,7 @@ export const toolContent = pgTable("tool_content", {
   quickCheckAnswer: text("quick_check_answer"),
   url: text("url"),
   imageUrl: text("image_url"),
+  tutorVideoUrl: text("tutor_video_url"),
   orderIndex: integer("order_index").notNull().default(0),
 });
 
