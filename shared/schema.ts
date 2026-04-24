@@ -64,6 +64,7 @@ export const toolContent = pgTable("tool_content", {
   imageUrl: text("image_url"),
   tutorVideoUrl: text("tutor_video_url"),
   captions: jsonb("captions"), // [{t: number, text: string}]
+  animationId: text("animation_id"), // key into MATH_ANIMATIONS registry
   orderIndex: integer("order_index").notNull().default(0),
 });
 

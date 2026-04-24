@@ -861,9 +861,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/admin/content", requireAdmin, async (req, res) => {
     try {
-      const { toolId, type, title, content, formula, quickCheck, quickCheckAnswer, url, imageUrl, orderIndex } = req.body;
+      const { toolId, type, title, content, formula, quickCheck, quickCheckAnswer, url, imageUrl, animationId, orderIndex } = req.body;
       if (!toolId || !title) return res.status(400).json({ message: "toolId and title are required" });
-      res.json(await storage.createToolContent({ toolId, type: type || "text", title, content: content || "", formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, url: url || null, imageUrl: imageUrl || null, orderIndex: orderIndex ?? 0 }));
+      res.json(await storage.createToolContent({ toolId, type: type || "text", title, content: content || "", formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, url: url || null, imageUrl: imageUrl || null, animationId: animationId || null, orderIndex: orderIndex ?? 0 }));
     } catch (err) { res.status(500).json({ message: "Internal server error" }); }
   });
 

@@ -52,17 +52,26 @@ export default function LandingPage({ onSignIn }: { onSignIn: () => void }) {
       <section className="px-5 py-20 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-14 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground font-mono text-sm font-bold uppercase tracking-wider border-2 border-foreground shadow-[0_3px_0_0_hsl(var(--foreground))] mb-8">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-foreground animate-pulse" />
-              System now live
+            {/* Logo + badge row */}
+            <div className="flex items-center gap-5 mb-8">
+              <OQLogo size={72} />
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground font-mono text-sm font-bold uppercase tracking-wider border-2 border-foreground shadow-[0_3px_0_0_hsl(var(--foreground))]">
+                <span className="w-2.5 h-2.5 rounded-full bg-primary-foreground animate-pulse" />
+                System now live
+              </div>
             </div>
-            <h1 className="text-6xl md:text-7xl font-black tracking-tight leading-[1.05] mb-6">
-              Learn exams fast<br />with <span className="text-primary relative">
-                short-form
-                <span className="absolute inset-x-0 bottom-1 h-3 bg-primary/25 -z-10 rounded" />
-              </span> lessons.
+
+            <h1 className="text-6xl md:text-8xl font-black tracking-tight leading-[1.0] mb-8">
+              Learn<br />
+              exams<br />
+              <span className="text-primary">fast.</span>
             </h1>
-            <div className="flex flex-wrap gap-4 mb-8">
+
+            <p className="text-2xl md:text-3xl font-semibold text-muted-foreground mb-8 leading-snug">
+              Short-form lessons built<br className="hidden md:block" /> for your next exam.
+            </p>
+
+            <div className="flex flex-wrap gap-4 mb-10">
               <button
                 onClick={() => loginWithGoogle()}
                 className="flex items-center gap-3 px-7 py-4 rounded-2xl bg-white text-[#0F0F0F] font-bold text-base border-2 border-foreground shadow-[0_4px_0_0_hsl(var(--foreground))] hover:-translate-y-0.5 hover:shadow-[0_6px_0_0_hsl(var(--foreground))] transition-all active:translate-y-1 active:shadow-none"
@@ -82,18 +91,31 @@ export default function LandingPage({ onSignIn }: { onSignIn: () => void }) {
                 Sign in with Email
               </button>
             </div>
-            <div className="flex flex-col gap-3">
-              {["Scroll like social media", "Quick bite-sized lessons", "Game-based platform"].map(t => (
-                <div key={t} className="flex items-center gap-3 text-xl font-semibold text-muted-foreground">
-                  <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-base font-bold flex-shrink-0">✓</div>
-                  {t}
+
+            {/* Big checkmark feature list */}
+            <div className="flex flex-col gap-4">
+              {[
+                { label: "Scroll like social media", sub: "TikTok-style lessons" },
+                { label: "Quick bite-sized lessons", sub: "Under 60 seconds each" },
+                { label: "Game-based platform", sub: "Earn XP, level up" },
+              ].map(({ label, sub }) => (
+                <div key={label} className="flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-primary border-2 border-foreground shadow-[0_3px_0_0_hsl(var(--foreground))] flex items-center justify-center flex-shrink-0">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 12l5 5L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-foreground leading-tight">{label}</p>
+                    <p className="text-base text-muted-foreground font-mono">{sub}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Platform mockup — mirrors the real learn screen */}
-          <div className="relative mx-auto md:mx-0 w-[300px]" style={{ animation: "card-float 5s ease-in-out infinite" }}>
+          <div className="relative mx-auto md:mx-0 w-[360px]" style={{ animation: "card-float 5s ease-in-out infinite" }}>
             {/* Green ambient glow */}
             <div className="absolute inset-0 rounded-[2.5rem] blur-3xl opacity-25 pointer-events-none -z-10"
               style={{ background: "radial-gradient(circle at 50% 60%, hsl(var(--primary)), transparent 70%)" }} />
@@ -120,48 +142,88 @@ export default function LandingPage({ onSignIn }: { onSignIn: () => void }) {
                 </div>
               </div>
 
-              {/* Tutor avatar — circular with pulsing ring like real platform */}
+              {/* Tutor video — actual platform video, circular like the real learn screen */}
               <div className="flex justify-center pt-4 pb-3">
                 <div className="relative">
                   <div className="absolute inset-0 rounded-full border-4 border-primary/25 scale-125 pointer-events-none"
                     style={{ animation: "ring-pulse 2s ease-out infinite" }} />
-                  <div className="w-24 h-24 rounded-full border-4 border-primary flex items-center justify-center"
-                    style={{ background: "hsl(var(--primary)/.08)" }}>
-                    <span className="text-5xl" style={{ display: "inline-block", animation: "tutor-bob 2.5s ease-in-out infinite" }}>🧑‍🏫</span>
+                  <div className="w-28 h-28 rounded-full border-4 border-primary overflow-hidden flex-shrink-0">
+                    <video
+                      src="https://zicpjbylqizukwtibjes.supabase.co/storage/v1/object/public/tutor-videos/1776970090247-3lu3ssfxcoz.mp4"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Cycling speech phrases */}
-              <div className="relative text-center min-h-[52px] flex items-center justify-center px-6 mb-1">
-                <p className="font-black text-base leading-snug absolute" style={{ animation: "phrase 9s linear 0s infinite" }}>
-                  "Take the exponent, bring it down."
-                </p>
-                <p className="font-black text-base leading-snug absolute" style={{ animation: "phrase 9s linear 3s infinite" }}>
-                  "Reduce the power by one."
-                </p>
-                <p className="font-black text-base leading-snug absolute text-primary" style={{ animation: "phrase 9s linear 6s infinite" }}>
-                  "d/dx [x³] = 3x² ✓"
-                </p>
+              {/* Caption */}
+              <div className="text-center px-5 pt-1 pb-2">
+                <p className="font-black text-base leading-snug">"What is a Limit?"</p>
               </div>
 
-              {/* Formula card — matches real platform card style */}
-              <div className="mx-5 mt-3 mb-3 rounded-2xl border-2 border-foreground p-4 text-center"
+              {/* Limit animation card */}
+              <div className="mx-4 mb-3 rounded-2xl border-2 border-foreground overflow-hidden"
                 style={{ background: "hsl(var(--card))", boxShadow: "0 4px 0 0 hsl(var(--foreground))" }}>
-                <p className="text-muted-foreground font-mono text-xs uppercase tracking-widest mb-1.5">Power Rule</p>
-                <p className="font-serif italic text-2xl">d/dx [xⁿ] = n · xⁿ⁻¹</p>
-              </div>
-
-              {/* Example */}
-              <div className="mx-5 mb-5 rounded-xl px-4 py-3"
-                style={{ background: "hsl(var(--primary)/.07)", border: "1px solid hsl(var(--primary)/.18)" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-mono text-xs uppercase tracking-wide">Example</span>
-                  <span className="text-primary font-mono text-base font-bold">d/dx [x³] = 3x²</span>
+                <div className="px-4 pt-3 pb-0 flex items-center justify-between">
+                  <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest">Limit Definition</p>
+                  <p className="font-serif italic text-sm">lim<sub style={{ fontSize: "0.65em" }}>x→a</sub> f(x) = L</p>
                 </div>
+
+                <svg viewBox="0 0 220 105" className="w-full">
+                  <defs>
+                    <filter id="dot-glow" x="-80%" y="-80%" width="260%" height="260%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                  </defs>
+
+                  {/* Axes */}
+                  <line x1="20" y1="90" x2="208" y2="90" stroke="#888" strokeWidth="1" opacity="0.3"/>
+                  <line x1="20" y1="10" x2="20" y2="90" stroke="#888" strokeWidth="1" opacity="0.3"/>
+
+                  {/* Dashed limit reference lines */}
+                  <line x1="20" y1="52" x2="105" y2="52" stroke="#22c55e" strokeWidth="1" strokeDasharray="4 3" opacity="0.55"/>
+                  <line x1="105" y1="52" x2="105" y2="90" stroke="#22c55e" strokeWidth="1" strokeDasharray="4 3" opacity="0.55"/>
+
+                  {/* Curve before hole (x=0→0.9 in data, stopping short of hole) */}
+                  <line x1="24" y1="88" x2="97" y2="57.2" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round"/>
+                  {/* Curve after hole (x=1.1→2.0) */}
+                  <line x1="113" y1="47.2" x2="189" y2="14" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round"/>
+
+                  {/* Open circle at hole (x=1, y=L) */}
+                  <circle cx="105" cy="52" r="4.5" stroke="#22c55e" strokeWidth="2" fill="hsl(var(--card))"/>
+
+                  {/* Axis labels */}
+                  <text x="105" y="101" fontSize="9" fill="#888" textAnchor="middle">a</text>
+                  <text x="11" y="56" fontSize="9" fill="#22c55e" textAnchor="middle">L</text>
+                  <text x="203" y="98" fontSize="8" fill="#888">x</text>
+
+                  {/* "= L ✓" badge fades in as dot approaches */}
+                  <g opacity="0">
+                    <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.62;0.75;0.92;1" dur="2.8s" repeatCount="indefinite"/>
+                    <rect x="110" y="40" width="36" height="18" rx="4" fill="#22c55e"/>
+                    <text x="128" y="53" fontSize="10" fill="white" fontWeight="bold" textAnchor="middle" fontFamily="monospace">= L ✓</text>
+                  </g>
+
+                  {/* Animated glowing dot sliding toward the limit */}
+                  <circle r="6" fill="#22c55e" filter="url(#dot-glow)">
+                    <animateMotion
+                      dur="2.8s"
+                      repeatCount="indefinite"
+                      calcMode="spline"
+                      keyTimes="0;1"
+                      keySplines="0.85 0 1 0.5"
+                      path="M 24 88 L 99 56"
+                    />
+                  </circle>
+                </svg>
               </div>
 
-              {/* Got It button — exactly like the real platform */}
+              {/* Got It button */}
               <div className="px-5 pb-8">
                 <div className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-black text-lg text-center border-2 border-foreground"
                   style={{ boxShadow: "0 4px 0 0 hsl(var(--foreground))" }}>
@@ -326,12 +388,6 @@ export default function LandingPage({ onSignIn }: { onSignIn: () => void }) {
         @keyframes reviews-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .reviews-track:hover { animation-play-state: paused; }
         @keyframes ring-pulse { 0% { transform: scale(1.25); opacity: 0.5; } 100% { transform: scale(1.6); opacity: 0; } }
-        @keyframes tutor-bob { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
-        @keyframes phrase {
-          0%,2%   { opacity:0; transform:translateY(4px); }
-          8%,28%  { opacity:1; transform:translateY(0); }
-          33%,100%{ opacity:0; transform:translateY(0); }
-        }
       `}</style>
     </div>
   );

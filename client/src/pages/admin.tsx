@@ -40,8 +40,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
   FolderOpen, Loader2, ImageIcon, Video, GraduationCap, FileText,
-  Copy, Ticket, Check, Upload, X, Sparkles, Library,
+  Copy, Ticket, Check, Upload, X, Sparkles, Library, Wand2,
 } from "lucide-react";
+import { MATH_ANIMATIONS, MathAnimation } from "@/components/math-animations";
 import { useToast } from "@/hooks/use-toast";
 import type { Tool, ToolContentItem, QuestionTemplate, Course, InviteCode } from "@shared/schema";
 
@@ -945,6 +946,7 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
   const [quickCheckAnswer, setQuickCheckAnswer] = useState(defaultValues?.quickCheckAnswer || "");
   const [orderIndex, setOrderIndex] = useState(String(defaultValues?.orderIndex ?? 0));
   const [tutorVideoUrl, setTutorVideoUrl] = useState(defaultValues?.tutorVideoUrl || "");
+  const [animationId, setAnimationId] = useState((defaultValues as any)?.animationId || "");
   const [videoUploading, setVideoUploading] = useState(false);
   const [captions, setCaptions] = useState<{t: number; text: string}[]>(
     Array.isArray((defaultValues as any)?.captions) ? (defaultValues as any).captions : []
@@ -1223,10 +1225,47 @@ function CardFormDialog({ open, onOpenChange, onSubmit, isPending, title, defaul
             onOpenChange={setShowLibrary}
             onSelect={(url) => setTutorVideoUrl(url)}
           />
+
+          {/* ── Math Animation Picker ── */}
+          <div className="space-y-3 rounded-2xl border-2 border-foreground p-4 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-bold flex items-center gap-2">
+                <Wand2 className="w-4 h-4" /> Math Animation (optional)
+              </Label>
+              {animationId && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAnimationId("")}>
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Attach an interactive animated visualization to this card. It will appear above the tutor video in the lesson.</p>
+            <div className="grid grid-cols-1 gap-2">
+              {Object.entries(MATH_ANIMATIONS).map(([id, { name, description }]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setAnimationId(animationId === id ? "" : id)}
+                  className={`text-left px-4 py-3 rounded-xl border-2 transition-all ${animationId === id ? "border-primary bg-primary/8" : "border-border hover:border-primary/40"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-sm">{name}</p>
+                    {animationId === id && <Check className="w-4 h-4 text-primary" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                </button>
+              ))}
+            </div>
+            {animationId && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                <MathAnimation id={animationId} />
+              </div>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSubmit({ title: cardTitle, content, formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, tutorVideoUrl: tutorVideoUrl || null, captions: captions.length > 0 ? captions : null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
+          <Button onClick={() => onSubmit({ title: cardTitle, content, formula: formula || null, quickCheck: quickCheck || null, quickCheckAnswer: quickCheckAnswer || null, tutorVideoUrl: tutorVideoUrl || null, captions: captions.length > 0 ? captions : null, animationId: animationId || null, orderIndex: parseInt(orderIndex) || 0 })} disabled={isPending || !cardTitle || !content} data-testid="button-submit-card">
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
           </Button>
         </DialogFooter>

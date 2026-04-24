@@ -68,77 +68,62 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 overflow-auto">
-      {/* ── Adventure header — parchment style ── */}
-      <div
-        className="px-5 pt-6 pb-5 relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg,#EDE0C4 0%,#DFD0A8 60%,#D4C090 100%)" }}
-      >
-        {/* Subtle noise */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.04]"
-          style={{ backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundSize:"200px" }} />
-
-        {/* Map icon decoration */}
-        <div className="absolute right-5 top-5 opacity-10">
-          <Map className="w-24 h-24" style={{ color:"#3D1F00" }} />
-        </div>
+      {/* ── Header ── */}
+      <div className="px-5 pt-6 pb-5 relative overflow-hidden bg-foreground">
+        {/* Ambient green glow */}
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--primary)/.25), transparent 70%)" }} />
 
         {/* Name + streak */}
         <div className="flex items-start justify-between mb-4 relative z-10">
           <div>
-            <p className="text-[9px] font-mono uppercase tracking-[0.25em]" style={{ color:"#8B6914" }}>Welcome back, Adventurer</p>
-            <h1 className="text-3xl font-black tracking-tight" style={{ color:"#3D1F00", fontFamily:"Georgia,serif" }}>
-              {firstName}
-            </h1>
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/40">Welcome back</p>
+            <h1 className="text-3xl font-black tracking-tight text-white">{firstName}</h1>
           </div>
           {profile && profile.streak > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border"
-              style={{ background:"#8B1A1A18", borderColor:"#8B1A1A40" }}>
-              <Flame className="w-4 h-4" style={{ color:"#8B1A1A" }} />
-              <span className="text-sm font-bold font-mono" style={{ color:"#8B1A1A" }}>{profile.streak}</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/10">
+              <Flame className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold font-mono text-primary">{profile.streak}d</span>
             </div>
           )}
         </div>
 
-        {/* XP scroll — brown parchment style */}
-        <div
-          className="rounded-2xl border-2 p-4 relative z-10"
-          style={{ background:"linear-gradient(135deg,#6B3A1F,#7B4A2A)", borderColor:"#3D1F00" }}
-        >
+        {/* XP card */}
+        <div className="rounded-2xl border-2 border-primary/30 p-4 relative z-10 bg-white/5">
           {isLoading ? (
-            <Skeleton className="h-16 w-full" style={{ background:"#ffffff20" }} />
+            <Skeleton className="h-16 w-full bg-white/10" />
           ) : (
             <>
               <div className="flex items-end justify-between mb-3">
                 <div>
-                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/50">Adventurer Level</p>
+                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/40">Level</p>
                   <p className="text-4xl font-black font-mono text-white leading-none">{profile?.level ?? 1}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/50">Total XP</p>
-                  <p className="text-2xl font-bold font-mono text-white">{profile?.xp ?? 0}</p>
+                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/40">Total XP</p>
+                  <p className="text-2xl font-bold font-mono text-primary">{profile?.xp ?? 0}</p>
                 </div>
               </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background:"rgba(255,255,255,0.15)" }}>
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{ width:`${Math.min(xpPct, 100)}%`, background:"linear-gradient(to right,#74C69D,#40916C)" }}
-                />
+              <div className="h-2 rounded-full overflow-hidden bg-white/10">
+                <div className="h-full rounded-full transition-all duration-700 bg-primary"
+                  style={{ width:`${Math.min(xpPct, 100)}%` }} />
               </div>
-              <p className="text-[9px] font-mono text-white/40 mt-1.5">
+              <p className="text-[9px] font-mono text-white/30 mt-1.5">
                 {xpInLevel(profile?.xp ?? 0, profile?.level ?? 1)} / {xpForNext} XP to Level {(profile?.level ?? 1) + 1}
               </p>
             </>
           )}
         </div>
 
-        {/* Overall world progress */}
+        {/* Overall progress */}
         {!isLoading && (
           <div className="mt-3 flex items-center gap-2 relative z-10">
-            <span className="text-[9px] font-mono" style={{ color:"#6B4226" }}>World explored</span>
-            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background:"#C8A96E" }}>
-              <div className="h-full rounded-full transition-all duration-700" style={{ width:`${overall}%`, background:"linear-gradient(to right,#2D6A4F,#74C69D)" }} />
+            <span className="text-[9px] font-mono text-white/40">Progress</span>
+            <div className="flex-1 h-1 rounded-full overflow-hidden bg-white/10">
+              <div className="h-full rounded-full transition-all duration-700 bg-primary"
+                style={{ width:`${overall}%` }} />
             </div>
-            <span className="text-[9px] font-mono font-bold" style={{ color:"#3D1F00" }}>{Math.round(overall)}%</span>
+            <span className="text-[9px] font-mono font-bold text-white/60">{Math.round(overall)}%</span>
           </div>
         )}
       </div>

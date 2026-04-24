@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useRef, useEffect } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
+import { MathAnimation } from "@/components/math-animations";
 import type { Tool, ToolContentItem, Course } from "@shared/schema";
 
 type LearnData = {
@@ -556,6 +557,13 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
               <div className="[&_.katex]:text-[1.8rem] [&_.katex-display]:my-1 [&_p]:text-xl [&_p]:font-mono [&_p]:m-0">
                 <RichContent content={currentContent.formula} />
               </div>
+            </div>
+          )}
+
+          {/* Math animation — interactive visualization */}
+          {currentContent?.animationId && (
+            <div key={`anim-${currentIndex}`} className="anim-formula">
+              <MathAnimation id={currentContent.animationId} />
             </div>
           )}
 
