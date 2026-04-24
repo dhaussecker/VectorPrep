@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
-import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan } from "./deepseek";
+import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
 import type { User } from "@shared/schema";
 
@@ -190,6 +190,18 @@ function generateFromTemplate(template: { templateText: string; solutionTemplate
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
   await seedDatabase();
+
+  // Auto-migrate new profile columns
+  try {
+    const { Pool } = await import("pg");
+    const migPool = new Pool({ connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL });
+    await migPool.query(`
+      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program text;
+      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program_courses jsonb;
+      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selected_course_names jsonb;
+    `);
+    await migPool.end();
+  } catch (e) { console.warn("Profile column migration skipped:", e); }
 
   // ─── Courses ──────────────────────────────────────────────────────
 
@@ -376,6 +388,112 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ─── Academic Program Setup ───────────────────────────────────────
+
+  app.post("/api/user/program", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { program } = req.body;
+      if (!program || typeof program !== "string") return res.status(400).json({ message: "program is required" });
+      const courses = await generateProgramCourses(program);
+      await storage.updateUserProfile(user.id, { program, programCourses: courses as any, selectedCourseNames: [] as any });
+      res.json({ program, courses });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to generate program courses" });
+    }
+  });
+
+  app.put("/api/user/program-courses", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { selectedCourseNames } = req.body;
+      if (!Array.isArray(selectedCourseNames)) return res.status(400).json({ message: "selectedCourseNames must be an array" });
+      await storage.updateUserProfile(user.id, { selectedCourseNames: selectedCourseNames as any });
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/user/program", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      await storage.updateUserProfile(user.id, { program: null as any, programCourses: null as any, selectedCourseNames: null as any });
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Upload syllabus for a user-selected program course → creates platform course
+  app.post("/api/user/syllabus-upload", requireAuth, uploadDocs.array("files", 5), async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { courseName } = req.body;
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
+
+      const texts: string[] = [];
+      const imageBase64s: string[] = [];
+      for (const file of files) {
+        const buffer = fs.readFileSync(file.path);
+        if (/\.pdf$/i.test(file.originalname)) {
+          const pdfParse = (await import("pdf-parse")).default;
+          const pdfData = await pdfParse(buffer);
+          texts.push(pdfData.text);
+        } else {
+          imageBase64s.push(buffer.toString("base64"));
+        }
+      }
+
+      const structure = await extractCourseStructure(texts, imageBase64s);
+      if (courseName) structure.courseName = courseName;
+
+      // Create course + tools + content (same as admin flow)
+      const course = await storage.createCourse({
+        name: structure.courseName,
+        description: structure.courseDescription,
+        icon: structure.courseIcon,
+        color: "#22C55E",
+        orderIndex: 100,
+        locked: false,
+      });
+      for (let ti = 0; ti < structure.topics.length; ti++) {
+        const topic = structure.topics[ti];
+        const tool = await storage.createTool({
+          courseId: course.id,
+          name: topic.name,
+          description: topic.description,
+          icon: topic.icon,
+          status: "active",
+          orderIndex: ti,
+          xpReward: 100,
+        });
+        for (let si = 0; si < topic.skills.length; si++) {
+          const skill = topic.skills[si];
+          await storage.createToolContent({
+            toolId: tool.id,
+            type: "text",
+            title: skill.title,
+            content: skill.content,
+            orderIndex: si,
+          } as any);
+        }
+      }
+
+      // Cleanup temp files
+      for (const file of files) { try { fs.unlinkSync(file.path); } catch {} }
+
+      res.json({ success: true, courseId: course.id, courseName: structure.courseName });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to process syllabus" });
     }
   });
 

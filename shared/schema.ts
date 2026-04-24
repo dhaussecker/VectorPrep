@@ -17,6 +17,9 @@ export const userProfiles = pgTable("user_profiles", {
   level: integer("level").notNull().default(1),
   streak: integer("streak").notNull().default(0),
   lastActiveDate: text("last_active_date"),
+  program: text("program"),
+  programCourses: jsonb("program_courses"),
+  selectedCourseNames: jsonb("selected_course_names"),
 });
 
 export const badges = pgTable("badges", {

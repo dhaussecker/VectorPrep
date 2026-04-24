@@ -118,7 +118,7 @@ function QuestMap({ courses, progressData }: {
   const searchLower = search.toLowerCase();
   const matches = (c: Course) => !search || c.name.toLowerCase().includes(searchLower) || (c.description ?? "").toLowerCase().includes(searchLower);
 
-  const getProgress = (courseId: number) => {
+  const getProgress = (courseId: string) => {
     const ct = progressData?.tools.filter(t => t.tool.courseId === courseId) ?? [];
     const pct = ct.length > 0 ? ct.reduce((s, t) => s + t.totalPercent, 0) / ct.length : 0;
     return { pct, mastered: ct.filter(t => t.totalPercent >= 100).length, total: ct.length };
@@ -142,9 +142,9 @@ function QuestMap({ courses, progressData }: {
       {/* Map viewport — explicit height avoids flex-chain collapse */}
       <div
         ref={containerRef}
-        style={{ height: "calc(100dvh - 295px)" }}
         className="relative overflow-hidden"
         style={{
+          height: "calc(100dvh - 295px)",
           cursor: dragging ? "grabbing" : "grab",
           background: "hsl(var(--background))",
           backgroundImage: "radial-gradient(circle, hsl(var(--foreground)/.08) 1px, transparent 1px)",

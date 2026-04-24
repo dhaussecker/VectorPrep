@@ -151,6 +151,42 @@ Distribute topics evenly. Earlier days should cover foundational topics. Each da
   return JSON.parse(jsonStr);
 }
 
+export interface ProgramCourse {
+  name: string;
+  code: string;
+  description: string;
+}
+
+export async function generateProgramCourses(program: string): Promise<ProgramCourse[]> {
+  const systemPrompt = `You are a university academic advisor with extensive knowledge of university programs worldwide. Given a program description, return a JSON array of courses typically offered in that program.
+
+Return ONLY valid JSON (no markdown fences) as an array:
+[
+  {
+    "name": "Full Course Name",
+    "code": "DEPT 101",
+    "description": "One sentence description of what the course covers"
+  }
+]
+
+Guidelines:
+- Return 8-16 courses typical for that program and year level
+- Include core required courses for that program
+- Use real course codes and names from that university if you know them, otherwise use realistic typical codes
+- Order from most foundational to more advanced
+- If year is mentioned, focus on courses for that year`;
+
+  const raw = await callDeepSeek(systemPrompt, `Program: ${program}`, 2048, 0.3);
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (!Array.isArray(parsed)) throw new Error("Not an array");
+    return parsed as ProgramCourse[];
+  } catch {
+    throw new Error("Failed to parse program courses from AI response");
+  }
+}
+
 export async function extractCourseStructure(
   texts: string[],
   imageBase64s: string[],
