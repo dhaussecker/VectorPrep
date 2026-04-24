@@ -168,7 +168,7 @@ export default function AuthPage() {
           <button
             type="submit"
             disabled={isPending}
-            className="btn-press w-full py-3 rounded-2xl bg-[#FFD400] border-2 border-foreground shadow-hard font-black font-mono text-foreground text-sm transition-all disabled:opacity-60"
+            className="btn-press w-full py-3 rounded-2xl bg-primary border-2 border-foreground shadow-hard font-black font-mono text-primary-foreground text-sm transition-all disabled:opacity-60"
             data-testid="button-login"
           >
             {isPending

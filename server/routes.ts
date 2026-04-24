@@ -273,6 +273,86 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ─── Dashboard (single combined fetch) ───────────────────────────
+
+  app.get("/api/dashboard", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+
+      // 8 parallel bulk queries — no per-tool round trips
+      const [
+        allTools, allCourses, allContent, allTasks,
+        allContentProgress, allTaskProgress,
+        profile, userBadges,
+      ] = await Promise.all([
+        storage.getTools(),
+        storage.getCourses(),
+        storage.getAllToolContent(),
+        storage.getAllTasks(),
+        storage.getAllUserContentProgress(user.id),
+        storage.getAllUserTaskProgress(user.id),
+        storage.getUserProfile(user.id),
+        storage.getUserBadges(user.id),
+      ]);
+
+      // Group by toolId in memory
+      const contentByTool = new Map<string, typeof allContent>();
+      for (const c of allContent) {
+        const arr = contentByTool.get(c.toolId) ?? [];
+        arr.push(c);
+        contentByTool.set(c.toolId, arr);
+      }
+      const tasksByTool = new Map<string, typeof allTasks>();
+      for (const t of allTasks) {
+        const arr = tasksByTool.get(t.toolId) ?? [];
+        arr.push(t);
+        tasksByTool.set(t.toolId, arr);
+      }
+      const cpByTool = new Map<string, typeof allContentProgress>();
+      for (const p of allContentProgress) {
+        const arr = cpByTool.get(p.toolId) ?? [];
+        arr.push(p);
+        cpByTool.set(p.toolId, arr);
+      }
+      const tpByTool = new Map<string, typeof allTaskProgress>();
+      for (const p of allTaskProgress) {
+        const arr = tpByTool.get(p.toolId) ?? [];
+        arr.push(p);
+        tpByTool.set(p.toolId, arr);
+      }
+
+      const toolProgressList = allTools.map((tool) => {
+        const content = contentByTool.get(tool.id) ?? [];
+        const toolTasks = tasksByTool.get(tool.id) ?? [];
+        const contentProgress = cpByTool.get(tool.id) ?? [];
+        const taskProgress = tpByTool.get(tool.id) ?? [];
+
+        const contentCompleted = contentProgress.filter((p) => p.completed).length;
+        const contentPercent = content.length > 0 ? (contentCompleted / content.length) * 100 : 0;
+        const tasksCompleted = taskProgress.filter((p) => p.completed).length;
+        const taskPercent = toolTasks.length > 0 ? (tasksCompleted / toolTasks.length) * 100 : 0;
+        const totalPercent = (contentPercent + taskPercent) / 2;
+
+        return { tool, contentPercent, taskPercent, totalPercent, tasksCompleted, totalTasks: toolTasks.length };
+      });
+
+      const overall = toolProgressList.length > 0
+        ? toolProgressList.reduce((s, tp) => s + tp.totalPercent, 0) / toolProgressList.length
+        : 0;
+
+      const finalProfile = profile ?? await storage.createUserProfile(user.id);
+
+      res.json({
+        profile: { ...finalProfile, badges: userBadges },
+        courses: allCourses,
+        progress: { overall, tools: toolProgressList },
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // ─── User Profile (XP/streak) ─────────────────────────────────────
 
   app.get("/api/user/profile", requireAuth, async (req, res) => {

@@ -54,6 +54,12 @@ export interface IStorage {
   deleteTool(id: string): Promise<void>;
   getToolCount(): Promise<number>;
 
+  // Bulk fetchers for dashboard (avoids N+1 queries)
+  getAllToolContent(): Promise<ToolContentItem[]>;
+  getAllTasks(): Promise<Task[]>;
+  getAllUserContentProgress(userId: string): Promise<UserContentProgress[]>;
+  getAllUserTaskProgress(userId: string): Promise<UserTaskProgress[]>;
+
   // Tool content (was: learn_cards)
   getToolContent(toolId: string): Promise<ToolContentItem[]>;
   getToolContentItem(id: string): Promise<ToolContentItem | undefined>;
@@ -252,6 +258,24 @@ export class DatabaseStorage implements IStorage {
   async getToolCount(): Promise<number> {
     const [result] = await db.select({ value: count() }).from(tools);
     return result.value;
+  }
+
+  // ─── Bulk fetchers (dashboard) ────────────────────────────────────
+
+  async getAllToolContent(): Promise<ToolContentItem[]> {
+    return db.select().from(toolContent).orderBy(toolContent.orderIndex);
+  }
+
+  async getAllTasks(): Promise<Task[]> {
+    return db.select().from(tasks).orderBy(tasks.orderIndex);
+  }
+
+  async getAllUserContentProgress(userId: string): Promise<UserContentProgress[]> {
+    return db.select().from(userContentProgress).where(eq(userContentProgress.userId, userId));
+  }
+
+  async getAllUserTaskProgress(userId: string): Promise<UserTaskProgress[]> {
+    return db.select().from(userTaskProgress).where(eq(userTaskProgress.userId, userId));
   }
 
   // ─── Tool Content ─────────────────────────────────────────────────

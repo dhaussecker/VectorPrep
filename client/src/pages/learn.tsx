@@ -68,7 +68,7 @@ function SuccessOverlay({
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      color: ["#FFD400", "#4ade80", "#22D3EE", "#f97316", "#a855f7", "#ec4899"][i % 6],
+      color: ["#F59E0B", "#4ade80", "#22D3EE", "#f97316", "#a855f7", "#ec4899"][i % 6],
       size: 5 + Math.random() * 9,
       delay: i * 0.018,
     };
@@ -108,7 +108,7 @@ function SuccessOverlay({
         <h2 className="text-2xl font-black text-primary mb-0.5">
           {isLast ? "Quest Complete!" : "Stage Clear!"}
         </h2>
-        <div className="succ-xp text-xl font-black font-mono text-[#FFD400]">+{xp} XP</div>
+        <div className="succ-xp text-xl font-black font-mono text-primary">+{xp} XP</div>
         <p className="text-xs text-muted-foreground font-mono mt-3">
           {isLast ? "You've mastered this quest! 🎉" : "Keep going →"}
         </p>
@@ -124,7 +124,7 @@ function getYouTubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-const WORD_COLORS = ["#FFD400", "#22D3EE", "#4ade80", "#f97316", "#a855f7", "#ec4899"];
+const WORD_COLORS = ["#F59E0B", "#22D3EE", "#4ade80", "#f97316", "#a855f7", "#ec4899"];
 
 // ─── Circular tutor bubble + karaoke captions ─────────────────────────────────
 
@@ -191,7 +191,7 @@ function TutorBubble({
         .tutor-bob { animation: tutor-bob 1.8s ease-in-out infinite; }
         @keyframes word-pop { 0%{transform:scale(0.75) rotate(-4deg);opacity:0.3} 60%{transform:scale(1.2) rotate(1deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
         .word-active { animation: word-pop 0.22s cubic-bezier(.2,.9,.2,1) both; }
-        @keyframes ring-pulse { 0%,100%{box-shadow:0 0 0 0 #FFD40066} 50%{box-shadow:0 0 0 8px #FFD40000} }
+        @keyframes ring-pulse { 0%,100%{box-shadow:0 0 0 0 hsl(var(--primary)/.4)} 50%{box-shadow:0 0 0 8px hsl(var(--primary)/0)} }
         .ring-pulse { animation: ring-pulse 1.6s ease-in-out infinite; }
       `}</style>
 
@@ -215,7 +215,7 @@ function TutorBubble({
             ref={videoRef}
             src={videoUrl}
             playsInline
-            className="w-full h-full object-cover rounded-full border-4 border-[#FFD400] shadow-hard"
+            className="w-full h-full object-cover rounded-full border-4 border-primary shadow-hard"
             onPlay={() => setVideoPlaying(true)}
             onPause={() => setVideoPlaying(false)}
             onEnded={() => setVideoPlaying(false)}
@@ -231,7 +231,7 @@ function TutorBubble({
         </div>
       ) : (
         <div
-          className="flex items-center justify-center rounded-full border-4 border-[#FFD400] bg-primary/10 flex-shrink-0"
+          className="flex items-center justify-center rounded-full border-4 border-primary bg-primary/10 flex-shrink-0"
           style={{ width: 148, height: 148 }}
         >
           <div className="tutor-bob"><span className="text-6xl">🧑‍🏫</span></div>
@@ -485,7 +485,7 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
                 i === currentIndex
                   ? "w-7 h-3 bg-primary"
                   : c.completed
-                  ? "w-3 h-3 bg-[#FFD400]"
+                  ? "w-3 h-3 bg-primary"
                   : "w-3 h-3 bg-border"
               }`}
             />
@@ -493,9 +493,9 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
         </div>
 
         {/* XP badge */}
-        <div className="flex items-center gap-1 px-2.5 py-1 bg-[#FFD400]/15 border border-[#FFD400]/30 rounded-full flex-shrink-0">
-          <Zap className="w-3 h-3 text-[#FFD400]" />
-          <span className="text-[11px] font-black font-mono text-[#FFD400]">{tool.xpReward}</span>
+        <div className="flex items-center gap-1 px-2.5 py-1 bg-primary/12 border border-primary/25 rounded-full flex-shrink-0">
+          <Zap className="w-3 h-3 text-primary" />
+          <span className="text-[11px] font-black font-mono text-primary">{tool.xpReward}</span>
         </div>
       </div>
 
@@ -534,35 +534,45 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
         </button>
 
         <div className="max-w-sm mx-auto px-5 flex flex-col gap-5 pb-2">
+          <style>{`
+            @keyframes slide-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+            @keyframes fade-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+            .anim-title{animation:slide-up .35s cubic-bezier(.2,.9,.2,1) both}
+            .anim-formula{animation:fade-in .4s cubic-bezier(.2,.9,.2,1) .08s both}
+            .anim-tutor{animation:slide-up .4s cubic-bezier(.2,.9,.2,1) .14s both}
+            .anim-content{animation:slide-up .4s cubic-bezier(.2,.9,.2,1) .2s both}
+          `}</style>
 
-          {/* Stage title — BIG */}
+          {/* Stage title */}
           {currentContent && (
-            <h2 className="text-2xl font-black text-center text-foreground leading-tight tracking-tight">
+            <h2 key={`title-${currentIndex}`} className="anim-title text-2xl font-black text-center text-foreground leading-tight tracking-tight">
               {currentContent.title}
             </h2>
           )}
 
-          {/* Formula — LARGE display */}
+          {/* Formula */}
           {currentContent?.formula && (
-            <div className="rounded-3xl bg-primary/8 border-2 border-primary/25 px-6 py-6 text-center">
+            <div key={`formula-${currentIndex}`} className="anim-formula rounded-3xl bg-primary/8 border-2 border-primary/25 px-6 py-6 text-center">
               <div className="[&_.katex]:text-[1.8rem] [&_.katex-display]:my-1 [&_p]:text-xl [&_p]:font-mono [&_p]:m-0">
                 <RichContent content={currentContent.formula} />
               </div>
             </div>
           )}
 
-          {/* Tutor bubble — circular video or avatar + karaoke */}
+          {/* Tutor bubble */}
           {currentContent && (
-            <TutorBubble
-              videoUrl={currentContent.tutorVideoUrl}
-              captions={currentContent.captions as Caption[] | null}
-              videoRef={videoRef}
-            />
+            <div key={`tutor-${currentIndex}`} className="anim-tutor">
+              <TutorBubble
+                videoUrl={currentContent.tutorVideoUrl}
+                captions={currentContent.captions as Caption[] | null}
+                videoRef={videoRef}
+              />
+            </div>
           )}
 
           {/* Explanation */}
           {currentContent && (
-            <div className="[&_p]:text-lg [&_p]:leading-relaxed [&_p]:text-foreground [&_li]:text-lg [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:space-y-2 [&_ol]:space-y-2">
+            <div key={`content-${currentIndex}`} className="anim-content [&_p]:text-lg [&_p]:leading-relaxed [&_p]:text-foreground [&_li]:text-lg [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:space-y-2 [&_ol]:space-y-2">
               <RichContent content={currentContent.content} />
             </div>
           )}
@@ -606,7 +616,7 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
               ? isLast
                 ? "bg-primary text-primary-foreground border-primary shadow-[0_4px_0_0_hsl(var(--primary)/0.4)] active:shadow-none active:translate-y-1"
                 : "bg-muted text-foreground border-foreground shadow-hard active:shadow-none active:translate-y-1"
-              : "bg-[#FFD400] text-[#0F0F0F] border-foreground shadow-hard hover:brightness-105 active:shadow-none active:translate-y-1"
+              : "bg-primary text-primary-foreground border-foreground shadow-hard hover:brightness-110 active:shadow-none active:translate-y-1"
           }`}
         >
           {isCurrentDone

@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/theme-provider";
-import { LayoutDashboard, Swords, Zap, Loader2, LogOut, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Swords, User, Loader2, LogOut, Sun, Moon } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { OQLogo } from "@/components/oq-logo";
@@ -24,7 +24,7 @@ import DemoPage from "@/pages/demo";
 const navItems = [
   { label: "Home", url: "/", icon: LayoutDashboard },
   { label: "Quests", url: "/classes", icon: Swords },
-  { label: "Challenge", url: "/practice", icon: Zap },
+  { label: "Profile", url: "/progress", icon: User },
 ];
 
 function BottomNav() {
@@ -109,8 +109,7 @@ function AuthenticatedApp() {
         </div>
       </header>
 
-      {/* Scrollable content — quest map uses its own internal snap-scroll */}
-      <main className={`flex-1 ${location === "/classes" ? "overflow-hidden" : "overflow-auto pb-20"}`}>
+      <main className="flex-1 overflow-auto pb-20">
         <Router />
       </main>
 
