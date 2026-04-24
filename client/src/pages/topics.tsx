@@ -125,9 +125,9 @@ function QuestMap({ courses, progressData }: {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div>
       {/* Search bar */}
-      <div className="px-4 pt-4 pb-3 bg-background border-b border-border flex-shrink-0">
+      <div className="px-4 pt-4 pb-3 bg-background border-b border-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -139,10 +139,11 @@ function QuestMap({ courses, progressData }: {
         </div>
       </div>
 
-      {/* Map viewport */}
+      {/* Map viewport — explicit height avoids flex-chain collapse */}
       <div
         ref={containerRef}
-        className="flex-1 relative overflow-hidden"
+        style={{ height: "calc(100dvh - 295px)" }}
+        className="relative overflow-hidden"
         style={{
           cursor: dragging ? "grabbing" : "grab",
           background: "hsl(var(--background))",
@@ -354,14 +355,13 @@ function AllCoursesPage() {
   );
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div>
       {/* Header */}
-      <div className="bg-foreground px-5 pt-5 pb-4 flex-shrink-0">
+      <div className="bg-foreground px-5 pt-5 pb-4">
         <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/40">Your journey</p>
         <h1 className="text-2xl font-black tracking-tight text-white">Quest Map</h1>
         <p className="text-[10px] text-white/40 font-mono mt-0.5">Drag to pan · Scroll or pinch to zoom · Tap to enter</p>
       </div>
-
       <QuestMap courses={courses ?? []} progressData={progressData} />
     </div>
   );
