@@ -187,6 +187,52 @@ Guidelines:
   }
 }
 
+export interface SyllabusUnit {
+  name: string;
+  outcomes: string[];
+  matchedToolIds: string[];
+}
+
+export async function extractAndMatchSyllabus(
+  syllabusText: string,
+  platformTools: { id: string; name: string; description: string }[],
+): Promise<SyllabusUnit[]> {
+  const toolList = platformTools
+    .slice(0, 60)
+    .map((t) => `ID:${t.id} | ${t.name}: ${t.description}`)
+    .join("\n");
+
+  const systemPrompt = `You are an academic advisor analyzing a course syllabus. Extract each unit/week and its learning outcomes, then match them to the most relevant platform topics.
+
+Return ONLY valid JSON (no markdown fences) as an array:
+[
+  {
+    "name": "string - unit or week name (e.g. Week 1: Introduction)",
+    "outcomes": ["string - specific learning outcome"],
+    "matchedToolIds": ["tool-id"]
+  }
+]
+
+Rules:
+- Extract 1 entry per week/unit/chapter from the syllabus
+- Keep outcomes concise and specific (max 4 per unit)
+- Match each unit to 1-3 platform tool IDs that best cover those outcomes
+- Only use IDs from the provided list; use empty array if no good match
+- Return at most 12 units`;
+
+  const userMessage = `Syllabus:\n${syllabusText.slice(0, 6000)}\n\nPlatform topics:\n${toolList}\n\nExtract units and match to platform topics.`;
+
+  const raw = await callDeepSeek(systemPrompt, userMessage, 3000, 0.2);
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (!Array.isArray(parsed)) throw new Error("not array");
+    return parsed as SyllabusUnit[];
+  } catch {
+    throw new Error("Failed to parse syllabus analysis");
+  }
+}
+
 export async function extractCourseStructure(
   texts: string[],
   imageBase64s: string[],

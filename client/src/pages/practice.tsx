@@ -9,12 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
+import { DiagramRenderer, type DiagramSpec } from "@/components/diagram-renderer";
 import type { Tool, Course } from "@shared/schema";
 
 type GeneratedQuestion = {
   attemptId: string;
   templateId: string;
   questionText: string;
+  diagram?: DiagramSpec | null;
 };
 
 type CourseToolsData = {
@@ -283,6 +285,7 @@ function PracticeSession({ courseId, toolId }: { courseId: string; toolId: strin
                   </div>
                 </CardHeader>
                 <CardContent className="p-5 pt-0">
+                  {question.diagram && <DiagramRenderer spec={question.diagram} />}
                   <RichContent content={question.questionText} className="text-sm" />
                 </CardContent>
               </Card>

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { RichContent } from "@/components/rich-content";
+import { DiagramRenderer, type DiagramSpec } from "@/components/diagram-renderer";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -187,6 +188,23 @@ function FormulaInsertBar({
           </TooltipTrigger>
           <TooltipContent>
             <p className="text-xs">Embed a YouTube video</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onInsert('```diagram\n{\n  "xRange": [-2, 5],\n  "yRange": [-2, 8],\n  "xLabel": "x",\n  "yLabel": "y",\n  "elements": [\n    { "type": "segment", "from": [0, 0], "to": [4, 4], "color": "#3b9eff" },\n    { "type": "point", "at": [0, 0], "open": false, "color": "#3b9eff" },\n    { "type": "point", "at": [4, 4], "open": true, "color": "#3b9eff" }\n  ]\n}\n```')}
+            >
+              📊 Diagram
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Insert a coordinate graph diagram</p>
           </TooltipContent>
         </Tooltip>
 
@@ -1435,10 +1453,18 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
   const [templateText, setTemplateText] = useState(defaultValues?.templateText || "");
   const [solutionTemplate, setSolutionTemplate] = useState(defaultValues?.solutionTemplate || "");
   const [answerType, setAnswerType] = useState(defaultValues?.answerType || "numeric");
-  const [parametersJson, setParametersJson] = useState(
-    defaultValues?.parameters ? JSON.stringify(defaultValues.parameters, null, 2) : '{\n  "a": { "min": 1, "max": 10 }\n}'
-  );
+  const [parametersJson, setParametersJson] = useState(() => {
+    if (!defaultValues?.parameters) return '{\n  "a": { "min": 1, "max": 10 }\n}';
+    const p = { ...(defaultValues.parameters as any) };
+    delete p.diagram;
+    return JSON.stringify(p, null, 2);
+  });
+  const [diagramJson, setDiagramJson] = useState(() => {
+    const d = (defaultValues?.parameters as any)?.diagram;
+    return d ? JSON.stringify(d, null, 2) : "";
+  });
   const [jsonError, setJsonError] = useState("");
+  const [diagramError, setDiagramError] = useState("");
   const questionRef = useRef<HTMLTextAreaElement>(null);
   const solutionRef = useRef<HTMLTextAreaElement>(null);
   const insertAtQuestionCursor = useInsertAtCursor(questionRef, templateText, setTemplateText);
@@ -1458,12 +1484,17 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
 
   const handleSubmit = () => {
     if (!validateJson(parametersJson)) return;
-    onSubmit({
-      templateText,
-      solutionTemplate,
-      answerType,
-      parameters: JSON.parse(parametersJson),
-    });
+    const params = JSON.parse(parametersJson);
+    if (diagramJson.trim()) {
+      try {
+        params.diagram = JSON.parse(diagramJson);
+        setDiagramError("");
+      } catch {
+        setDiagramError("Invalid diagram JSON");
+        return;
+      }
+    }
+    onSubmit({ templateText, solutionTemplate, answerType, parameters: params });
   };
 
   const handleInsert = (template: string) => {
@@ -1565,6 +1596,35 @@ function TemplateFormDialog({ open, onOpenChange, onSubmit, isPending, title, de
                 data-testid="input-parameters-json"
               />
               {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Diagram (optional)</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">JSON spec — segments, points, labels</p>
+                <Textarea
+                  value={diagramJson}
+                  onChange={(e) => { setDiagramJson(e.target.value); setDiagramError(""); }}
+                  placeholder={'{\n  "xRange": [-1, 5],\n  "yRange": [-1, 8],\n  "xLabel": "x",\n  "yLabel": "y = f(x)",\n  "elements": [\n    { "type": "segment", "from": [-1,0], "to": [2,3], "color": "#3b9eff" },\n    { "type": "point", "at": [2,3], "open": true, "color": "#3b9eff" }\n  ]\n}'}
+                  className="min-h-[130px] font-mono text-xs"
+                />
+                {diagramError && <p className="text-xs text-destructive">{diagramError}</p>}
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Preview</p>
+                <div className="border rounded-md p-2 min-h-[130px] flex items-center justify-center bg-muted/20">
+                  {diagramJson.trim() ? (() => {
+                    try {
+                      const spec = JSON.parse(diagramJson) as DiagramSpec;
+                      return <DiagramRenderer spec={spec} />;
+                    } catch {
+                      return <p className="text-xs text-muted-foreground">Invalid JSON</p>;
+                    }
+                  })() : <p className="text-xs text-muted-foreground italic">Diagram preview</p>}
+                </div>
+              </div>
             </div>
           </div>
 

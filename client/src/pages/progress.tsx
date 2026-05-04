@@ -1,19 +1,23 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { GraduationCap, Upload, Check, X, Pencil, BookOpen, Flame, Trophy, Loader2, ArrowRight, Search } from "lucide-react";
+import { GraduationCap, Upload, Check, X, Pencil, BookOpen, Flame, Trophy, Loader2, ArrowRight, Search, ChevronDown, ChevronUp, Link as LinkIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
 import type { Course } from "@shared/schema";
 
 type ProgramCourse = { name: string; code: string; description: string };
+type MatchedTool = { id: string; name: string; courseId?: string | null };
+type SyllabusUnit = { name: string; outcomes: string[]; matchedTools: MatchedTool[] };
 type ProfileData = {
   xp: number; level: number; streak: number;
   program?: string;
   programCourses?: ProgramCourse[];
   selectedCourseNames?: string[];
+  syllabusOutcomes?: Record<string, SyllabusUnit[]>;
   badges: { id: string; name: string; icon: string }[];
 };
 
@@ -58,20 +62,20 @@ function ProgramSetup({ onDone }: { onDone: () => void }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token ?? "";
       const fd = new FormData();
-      fd.append("files", file);
+      fd.append("file", file);
       fd.append("courseName", courseName);
-      const res = await fetch("/api/user/syllabus-upload", {
+      const res = await fetch("/api/user/syllabus-outcomes", {
         method: "POST",
         body: fd,
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return res.json() as Promise<{ courseName: string; units: SyllabusUnit[] }>;
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       setUploadedCourses(p => new Set([...Array.from(p), vars.courseName]));
       setUploadingFor(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
     },
     onError: () => setUploadingFor(null),
   });
@@ -118,7 +122,12 @@ function ProgramSetup({ onDone }: { onDone: () => void }) {
           {searchMut.isPending ? "Finding your courses…" : "Find My Courses"}
         </button>
         {searchMut.isError && (
-          <p className="text-xs text-destructive text-center font-mono">Failed to fetch courses. Try again.</p>
+          <div className="text-xs text-destructive text-center font-mono space-y-1">
+            <p>Failed to fetch courses. Try again.</p>
+            {searchMut.error instanceof Error && (
+              <p className="text-[10px] opacity-70 break-all">{searchMut.error.message}</p>
+            )}
+          </div>
         )}
       </div>
     );
@@ -168,12 +177,18 @@ function ProgramSetup({ onDone }: { onDone: () => void }) {
                   <button
                     onClick={e => { e.stopPropagation(); setUploadingFor(c.name); fileRef.current?.click(); }}
                     className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border text-[10px] font-mono hover:border-primary transition-colors"
+                    title="Upload syllabus PDF to map learning outcomes to platform lessons"
                   >
                     {uploadMut.isPending && uploadingFor === c.name
                       ? <Loader2 className="w-3 h-3 animate-spin" />
                       : <Upload className="w-3 h-3" />}
                     syllabus
                   </button>
+                )}
+                {isSelected && isUploaded && uploadMut.isPending && uploadingFor === c.name && (
+                  <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> mapping…
+                  </span>
                 )}
               </div>
             );
@@ -199,11 +214,43 @@ function ProgramSetup({ onDone }: { onDone: () => void }) {
 
 // ─── Profile done state ────────────────────────────────────────────────────
 
+function SyllabusOutcomes({ units }: { units: SyllabusUnit[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const matched = units.filter(u => u.matchedTools.length > 0);
+  if (matched.length === 0) return null;
+  const shown = expanded ? matched : matched.slice(0, 2);
+  return (
+    <div className="mt-2 space-y-1.5">
+      <p className="text-[9px] font-mono uppercase tracking-wider text-primary">Study Path ({matched.length} units matched)</p>
+      {shown.map(unit => (
+        <div key={unit.name} className="pl-2 border-l-2 border-primary/30 space-y-0.5">
+          <p className="text-[10px] font-mono text-muted-foreground truncate">{unit.name}</p>
+          {unit.matchedTools.map(t => (
+            <Link key={t.id} href={t.courseId ? `/learn/${t.courseId}/${t.id}` : "#"}>
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline cursor-pointer">
+                <LinkIcon className="w-2.5 h-2.5 flex-shrink-0" />
+                <span className="truncate">{t.name}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ))}
+      {matched.length > 2 && (
+        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors">
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {expanded ? "Show less" : `+${matched.length - 2} more units`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ProfileCard({ profile, onEdit }: { profile: ProfileData; onEdit: () => void }) {
   const { data: courses } = useQuery<Course[]>({ queryKey: ["/api/courses"] });
 
   const selected = profile.selectedCourseNames ?? [];
   const programCourses = (profile.programCourses ?? []) as ProgramCourse[];
+  const syllabusOutcomes = profile.syllabusOutcomes ?? {};
   const xpForNext = xpToNext(profile.level);
   const xpPct = (xpInLevel(profile.xp, profile.level) / xpForNext) * 100;
 
@@ -261,15 +308,18 @@ function ProfileCard({ profile, onEdit }: { profile: ProfileData; onEdit: () => 
                 const pc = programCourses.find(c => c.name === name);
                 const platformCourse = courses?.find(c => c.name === name || c.name.includes(name.split(" ")[0]));
                 return (
-                  <div key={name} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-background border border-border">
-                    <BookOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate">{name}</p>
-                      {pc && <p className="text-[10px] text-muted-foreground font-mono">{pc.code}</p>}
+                  <div key={name} className="px-2 py-1.5 rounded-lg bg-background border border-border">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{name}</p>
+                        {pc && <p className="text-[10px] text-muted-foreground font-mono">{pc.code}</p>}
+                      </div>
+                      {syllabusOutcomes[name] && (
+                        <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">mapped</span>
+                      )}
                     </div>
-                    {platformCourse && (
-                      <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">on platform</span>
-                    )}
+                    {syllabusOutcomes[name] && <SyllabusOutcomes units={syllabusOutcomes[name]} />}
                   </div>
                 );
               })}

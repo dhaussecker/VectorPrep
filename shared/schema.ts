@@ -20,6 +20,7 @@ export const userProfiles = pgTable("user_profiles", {
   program: text("program"),
   programCourses: jsonb("program_courses"),
   selectedCourseNames: jsonb("selected_course_names"),
+  syllabusOutcomes: jsonb("syllabus_outcomes"),
 });
 
 export const badges = pgTable("badges", {

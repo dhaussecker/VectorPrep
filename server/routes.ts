@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
-import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses } from "./deepseek";
+import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
 import type { User } from "@shared/schema";
 
@@ -199,6 +199,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program text;
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program_courses jsonb;
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selected_course_names jsonb;
+      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS syllabus_outcomes jsonb;
     `);
     await migPool.end();
   } catch (e) { console.warn("Profile column migration skipped:", e); }
@@ -497,6 +498,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ─── Syllabus → Learning Outcomes → Platform Match ───────────────
+
+  app.post("/api/user/syllabus-outcomes", requireAuth, uploadDocs.single("file"), async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { courseName } = req.body;
+      const file = req.file as Express.Multer.File;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+      if (!courseName) return res.status(400).json({ message: "courseName is required" });
+
+      let syllabusText = "";
+      const buffer = fs.readFileSync(file.path);
+      if (/\.pdf$/i.test(file.originalname)) {
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfData = await pdfParse(buffer);
+        syllabusText = pdfData.text;
+      } else {
+        return res.status(400).json({ message: "Please upload a PDF file" });
+      }
+      try { fs.unlinkSync(file.path); } catch {}
+
+      const allTools = await storage.getTools();
+      const platformTools = allTools.map((t) => ({ id: t.id, name: t.name, description: t.description }));
+
+      const units = await extractAndMatchSyllabus(syllabusText, platformTools);
+
+      // Enrich matchedToolIds → full tool objects with name + courseId
+      const enrichedUnits = units.map((unit) => ({
+        ...unit,
+        matchedTools: unit.matchedToolIds
+          .map((id) => {
+            const t = allTools.find((t) => t.id === id);
+            return t ? { id: t.id, name: t.name, courseId: t.courseId } : null;
+          })
+          .filter(Boolean),
+      }));
+
+      // Store in user profile
+      const profile = await storage.getUserProfile(user.id);
+      const existing = ((profile as any)?.syllabusOutcomes ?? {}) as Record<string, any>;
+      existing[courseName] = enrichedUnits;
+      await storage.updateUserProfile(user.id, { syllabusOutcomes: existing } as any);
+
+      res.json({ courseName, units: enrichedUnits });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to analyze syllabus" });
+    }
+  });
+
   // ─── Learn (tool content) ─────────────────────────────────────────
 
   app.get("/api/learn/:toolId", requireAuth, async (req, res) => {
@@ -611,7 +662,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const generated = generateFromTemplate(template);
       const attemptId = await storage.createPracticeAttempt(user.id, template.id, toolId, generated.questionText, generated.correctAnswer, generated.solutionSteps);
-      res.json({ attemptId, templateId: template.id, questionText: generated.questionText });
+      const diagram = (template.parameters as any)?.diagram ?? null;
+      res.json({ attemptId, templateId: template.id, questionText: generated.questionText, diagram });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Internal server error" });
