@@ -7,7 +7,9 @@ async function main() {
   const tools = await storage.getToolsByCourse(course.id);
   const tool = tools.find(t => t.name === "Data & Data Types")!;
   const content = await storage.getToolContent(tool.id);
-  const card = content.find(c => c.title === "Data Types Dungeon")!;
-  console.log(JSON.stringify(card.content.slice(0, 600)));
+  for (const c of content) {
+    console.log(`title: ${c.title}, type: ${c.type}, content_len: ${c.content.length}`);
+    if (c.type === "game") console.log("  first 80 chars:", JSON.stringify(c.content.slice(0, 80)));
+  }
 }
 main();

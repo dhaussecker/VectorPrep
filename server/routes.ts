@@ -294,13 +294,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // 8 parallel bulk queries — no per-tool round trips
       const [
-        allTools, allCourses, allContent, allTasks,
+        allTools, allCourses, contentCounts, allTasks,
         allContentProgress, allTaskProgress,
         profile, userBadges,
       ] = await Promise.all([
         storage.getTools(),
         storage.getCourses(),
-        storage.getAllToolContent(),
+        storage.getToolContentCounts(),
         storage.getAllTasks(),
         storage.getAllUserContentProgress(user.id),
         storage.getAllUserTaskProgress(user.id),
@@ -309,11 +309,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       ]);
 
       // Group by toolId in memory
-      const contentByTool = new Map<string, typeof allContent>();
-      for (const c of allContent) {
-        const arr = contentByTool.get(c.toolId) ?? [];
-        arr.push(c);
-        contentByTool.set(c.toolId, arr);
+      const contentByTool = new Map<string, number>();
+      for (const { toolId, count } of contentCounts) {
+        contentByTool.set(toolId, count);
       }
       const tasksByTool = new Map<string, typeof allTasks>();
       for (const t of allTasks) {
@@ -335,13 +333,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const toolProgressList = allTools.map((tool) => {
-        const content = contentByTool.get(tool.id) ?? [];
+        const contentCount = contentByTool.get(tool.id) ?? 0;
         const toolTasks = tasksByTool.get(tool.id) ?? [];
         const contentProgress = cpByTool.get(tool.id) ?? [];
         const taskProgress = tpByTool.get(tool.id) ?? [];
 
         const contentCompleted = contentProgress.filter((p) => p.completed).length;
-        const contentPercent = content.length > 0 ? (contentCompleted / content.length) * 100 : 0;
+        const contentPercent = contentCount > 0 ? (contentCompleted / contentCount) * 100 : 0;
         const tasksCompleted = taskProgress.filter((p) => p.completed).length;
         const taskPercent = toolTasks.length > 0 ? (tasksCompleted / toolTasks.length) * 100 : 0;
         const totalPercent = (contentPercent + taskPercent) / 2;

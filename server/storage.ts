@@ -56,6 +56,7 @@ export interface IStorage {
 
   // Bulk fetchers for dashboard (avoids N+1 queries)
   getAllToolContent(): Promise<ToolContentItem[]>;
+  getToolContentCounts(): Promise<{ toolId: string; count: number }[]>;
   getAllTasks(): Promise<Task[]>;
   getAllUserContentProgress(userId: string): Promise<UserContentProgress[]>;
   getAllUserTaskProgress(userId: string): Promise<UserTaskProgress[]>;
@@ -264,6 +265,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAllToolContent(): Promise<ToolContentItem[]> {
     return db.select().from(toolContent).orderBy(toolContent.orderIndex);
+  }
+
+  async getToolContentCounts(): Promise<{ toolId: string; count: number }[]> {
+    const rows = await db
+      .select({ toolId: toolContent.toolId, count: count() })
+      .from(toolContent)
+      .groupBy(toolContent.toolId);
+    return rows.map(r => ({ toolId: r.toolId, count: Number(r.count) }));
   }
 
   async getAllTasks(): Promise<Task[]> {
