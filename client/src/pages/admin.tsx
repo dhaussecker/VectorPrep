@@ -198,6 +198,23 @@ function FormulaInsertBar({
               variant="outline"
               size="sm"
               className="h-7 px-2 text-xs"
+              onClick={() => onInsert('```pyrun\n# Edit and run this code!\nplayer_x = 0\nplayer_y = 0\nprint(f"Player at ({player_x}, {player_y})")\n```')}
+            >
+              🐍 Code
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Insert a runnable Python code block</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
               onClick={() => onInsert('```diagram\n{\n  "xRange": [-2, 5],\n  "yRange": [-2, 8],\n  "xLabel": "x",\n  "yLabel": "y",\n  "elements": [\n    { "type": "segment", "from": [0, 0], "to": [4, 4], "color": "#3b9eff" },\n    { "type": "point", "at": [0, 0], "open": false, "color": "#3b9eff" },\n    { "type": "point", "at": [4, 4], "open": true, "color": "#3b9eff" }\n  ]\n}\n```')}
             >
               📊 Diagram

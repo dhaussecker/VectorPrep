@@ -4,6 +4,8 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import "katex/dist/katex.min.css";
 import { DiagramRenderer } from "./diagram-renderer";
+import { PythonRunner } from "./python-runner";
+import { GameRunner } from "./game-runner";
 
 function extractYouTubeId(url: string): string | null {
   const patterns = [
@@ -80,13 +82,19 @@ export function RichContent({ content, className = "" }: RichContentProps) {
             );
           },
           code: ({ className: codeClassName, children, ...props }) => {
+            if (codeClassName === "language-game") {
+              return <GameRunner initCode={String(children)} />;
+            }
             if (codeClassName === "language-diagram") {
               try {
                 const spec = JSON.parse(String(children).trim());
                 return <DiagramRenderer spec={spec} />;
               } catch {
-                // fall through to normal code rendering
+                // fall through
               }
+            }
+            if (codeClassName === "language-pyrun") {
+              return <PythonRunner initialCode={String(children)} />;
             }
             const isInline = !codeClassName;
             if (isInline) {
