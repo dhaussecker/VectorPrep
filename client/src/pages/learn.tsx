@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { RichContent } from "@/components/rich-content";
 import { MathAnimation } from "@/components/math-animations";
+import { GameRunner } from "@/components/game-runner";
 import type { Tool, ToolContentItem, Course } from "@shared/schema";
 
 type LearnData = {
@@ -578,8 +579,15 @@ function LearnSession({ courseId, toolId }: { courseId: string; toolId: string }
             </div>
           )}
 
+          {/* Game — interactive Python dungeon */}
+          {currentContent?.type === "game" && currentContent.content && (
+            <div key={`game-${currentIndex}`} className="anim-content">
+              <GameRunner initCode={currentContent.content} />
+            </div>
+          )}
+
           {/* Explanation */}
-          {currentContent && (
+          {currentContent && currentContent.type !== "game" && (
             <div key={`content-${currentIndex}`} className="anim-content [&_p]:text-lg [&_p]:leading-relaxed [&_p]:text-foreground [&_li]:text-lg [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:space-y-2 [&_ol]:space-y-2">
               <RichContent content={currentContent.content} />
             </div>

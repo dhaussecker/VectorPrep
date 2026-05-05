@@ -170,21 +170,13 @@ async function main() {
   }
   console.log(`  Deleted ${existingContent.length} old content card(s)`);
 
-  // Create new content: game first, then a short reference card
+  // Create new content: game card (type="game") then reference card
   await storage.createToolContent({
     toolId: tool.id,
-    type: "text",
+    type: "game",
     title: "Data Types Dungeon",
     orderIndex: 0,
-    content:
-`## Data Types Dungeon 🎮
-
-Explore the dungeon by typing Python commands. Each chest you collect teaches you a **data type** — the four fundamental kinds of values in Python.
-
-\`\`\`game
-${GAME_INIT_CODE}
-\`\`\`
-`,
+    content: GAME_INIT_CODE,
   });
 
   await storage.createToolContent({
