@@ -233,6 +233,50 @@ Rules:
   }
 }
 
+export interface SyllabusScanResult {
+  courseName: string;
+  sections: {
+    title: string;
+    skills: string[];
+  }[];
+}
+
+export async function scanSyllabusSkills(syllabusText: string): Promise<SyllabusScanResult> {
+  const systemPrompt = `You are an expert academic advisor. Given a course syllabus, extract the key skills a student must learn, organized by section/unit/week.
+
+Return ONLY valid JSON (no markdown fences) matching this exact schema:
+{
+  "courseName": "string - the course name",
+  "sections": [
+    {
+      "title": "string - section name, e.g. 'Section 1: Vectors' or 'Week 1: Introduction'",
+      "skills": ["string - short skill name", "string - short skill name"]
+    }
+  ]
+}
+
+Guidelines:
+- Extract 4-10 sections from the syllabus
+- Each section should have 2-6 skill names
+- Keep skill names SHORT and specific (3-8 words max), e.g. "Dot product" not "Understanding how dot products work"
+- Use the syllabus structure (weeks, chapters, units, topics) to form sections
+- Title each section clearly using its week/chapter/unit number and topic name`;
+
+  const userMessage = `Syllabus:\n${syllabusText.slice(0, 8000)}\n\nExtract sections and skills.`;
+
+  const raw = await callDeepSeek(systemPrompt, userMessage, 2048, 0.2);
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  try {
+    const parsed = JSON.parse(jsonStr) as SyllabusScanResult;
+    if (!parsed.courseName || !Array.isArray(parsed.sections)) {
+      throw new Error("Invalid scan result structure");
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`Failed to parse syllabus scan: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
 export async function extractCourseStructure(
   texts: string[],
   imageBase64s: string[],
