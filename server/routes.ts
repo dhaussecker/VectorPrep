@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
-import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus } from "./deepseek";
+import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
 import type { User } from "@shared/schema";
 
@@ -62,15 +62,27 @@ declare module "express-serve-static-core" {
   interface Request { user?: User; }
 }
 
+// Cache verified tokens for 60 s to avoid repeated Supabase round-trips
+const _authCache = new Map<string, { user: User; expires: number }>();
+
 async function requireAuth(req: any, res: any, next: any) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ message: "Not authenticated" });
     const token = authHeader.slice(7);
+
+    const cached = _authCache.get(token);
+    if (cached && cached.expires > Date.now()) {
+      req.user = cached.user;
+      return next();
+    }
+
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data.user) return res.status(401).json({ message: "Not authenticated" });
     const user = await storage.getUser(data.user.id);
     if (!user) return res.status(401).json({ message: "User profile not found" });
+
+    _authCache.set(token, { user, expires: Date.now() + 60_000 });
     req.user = user;
     next();
   } catch {
@@ -189,7 +201,21 @@ function generateFromTemplate(template: { templateText: string; solutionTemplate
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
-  await seedDatabase();
+
+  // ─── Public signup (no auth required) ─────────────────────────────────────
+  app.post("/api/signup", async (req, res) => {
+    const { email, classes } = req.body as { email?: string; classes?: string[] };
+    if (!email) return res.status(400).json({ message: "Email required" });
+    console.log(`[signup] ${email} — classes: ${(classes ?? []).join(", ")}`);
+    // TODO: persist to DB once connection is restored
+    return res.status(200).json({ ok: true });
+  });
+
+  try {
+    await seedDatabase();
+  } catch (e) {
+    console.warn("seedDatabase skipped (DB unreachable):", (e as Error).message);
+  }
 
   // Auto-migrate new profile columns
   try {
@@ -493,6 +519,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ message: err.message || "Failed to process syllabus" });
+    }
+  });
+
+  // Fast syllabus scan → sections + skill names (no content generation)
+  app.post("/api/user/syllabus-scan", requireAuth, uploadDocs.single("file"), async (req, res) => {
+    try {
+      const file = req.file as Express.Multer.File;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+      let syllabusText = "";
+      const buffer = fs.readFileSync(file.path);
+      if (/\.pdf$/i.test(file.originalname)) {
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfData = await pdfParse(buffer);
+        syllabusText = pdfData.text;
+      } else {
+        return res.status(400).json({ message: "Please upload a PDF file" });
+      }
+      try { fs.unlinkSync(file.path); } catch {}
+
+      const result = await scanSyllabusSkills(syllabusText);
+      res.json(result);
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to scan syllabus" });
     }
   });
 
