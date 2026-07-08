@@ -13,9 +13,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("oq-theme");
-      return saved === "dark" ? "dark" : "light";
+      return saved === "light" ? "light" : "dark";
     }
-    return "light";
+    return "dark";
   });
 
   useEffect(() => {

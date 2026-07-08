@@ -41,7 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
   FolderOpen, Loader2, ImageIcon, Video, GraduationCap, FileText,
-  Copy, Ticket, Check, Upload, X, Sparkles, Library, Wand2,
+  Copy, Ticket, Check, Upload, X, Sparkles, Library, Wand2, Mail, Send,
 } from "lucide-react";
 import { MATH_ANIMATIONS, MathAnimation } from "@/components/math-animations";
 import { useToast } from "@/hooks/use-toast";
@@ -281,56 +281,7 @@ export default function AdminPage() {
   return (
     <div className="flex-1 overflow-auto">
       <div className="px-6 md:px-8 py-6">
-        <h1 className="text-2xl font-bold tracking-tight mb-1" data-testid="text-admin-title">Content Manager</h1>
-        <p className="text-muted-foreground text-sm mb-6">Create and manage courses, tools, content cards, and question templates</p>
-
-        <Tabs defaultValue="courses">
-          <TabsList data-testid="tabs-admin">
-            <TabsTrigger value="courses" data-testid="tab-courses">
-              <GraduationCap className="w-4 h-4 mr-1.5" />
-              Courses
-            </TabsTrigger>
-            <TabsTrigger value="tools" data-testid="tab-tools">
-              <FolderOpen className="w-4 h-4 mr-1.5" />
-              Tools
-            </TabsTrigger>
-            <TabsTrigger value="content" data-testid="tab-content">
-              <BookOpen className="w-4 h-4 mr-1.5" />
-              Content
-            </TabsTrigger>
-            <TabsTrigger value="templates" data-testid="tab-templates">
-              <ClipboardCheck className="w-4 h-4 mr-1.5" />
-              Question Templates
-            </TabsTrigger>
-            <TabsTrigger value="invite-codes" data-testid="tab-invite-codes">
-              <Ticket className="w-4 h-4 mr-1.5" />
-              Invite Codes
-            </TabsTrigger>
-            <TabsTrigger value="ai-import" data-testid="tab-ai-import">
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              AI Import
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="courses">
-            <CoursesManager />
-          </TabsContent>
-          <TabsContent value="tools">
-            <ToolsManager />
-          </TabsContent>
-          <TabsContent value="content">
-            <ContentManager />
-          </TabsContent>
-          <TabsContent value="templates">
-            <TemplatesManager />
-          </TabsContent>
-          <TabsContent value="invite-codes">
-            <InviteCodesManager />
-          </TabsContent>
-          <TabsContent value="ai-import">
-            <AISyllabusImport />
-          </TabsContent>
-        </Tabs>
+        <WeeklyEmailsManager />
       </div>
     </div>
   );
@@ -2397,6 +2348,165 @@ function AIChatPanel({ currentContent, onContentUpdate, context }: {
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Send"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Weekly Emails Manager ────────────────────────────────────────────────────
+
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY ?? "";
+const CLASSES = ["MATH110", "GE122", "GE152", "GE172", "CMPT142", "MATH133"];
+
+function WeeklyEmailsManager() {
+  const { toast } = useToast();
+  const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [docs, setDocs] = useState<{ url: string; pathname: string }[]>([]);
+  const [signupCount, setSignupCount] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const week = new Date().toISOString().slice(0, 10);
+
+  async function loadDocs() {
+    const res = await fetch(`/api/admin/weekly-docs?week=${week}`, {
+      headers: { "x-admin-key": ADMIN_KEY },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setDocs(data.docs);
+    }
+  }
+
+  async function loadSignups() {
+    const res = await fetch("/api/admin/signup-count", {
+      headers: { "x-admin-key": ADMIN_KEY },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setSignupCount(data.count);
+    }
+  }
+
+  useState(() => { loadDocs(); loadSignups(); });
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("className", selectedClass);
+    const res = await fetch("/api/admin/upload-weekly", {
+      method: "POST",
+      headers: { "x-admin-key": ADMIN_KEY },
+      body: form,
+    });
+    setUploading(false);
+    if (res.ok) {
+      toast({ title: "Uploaded", description: `${selectedClass}.pdf ready for this week` });
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+      loadDocs();
+    } else {
+      toast({ title: "Upload failed", variant: "destructive" });
+    }
+  }
+
+  async function handleDelete(url: string) {
+    await fetch("/api/admin/weekly-docs", {
+      method: "DELETE",
+      headers: { "x-admin-key": ADMIN_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    loadDocs();
+  }
+
+  async function handleSendNow() {
+    setSending(true);
+    const res = await fetch("/api/cron/send-weekly", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${import.meta.env.VITE_CRON_SECRET ?? ""}` },
+    });
+    setSending(false);
+    const data = await res.json();
+    if (res.ok) {
+      toast({ title: `Sent to ${data.sent} students`, description: `Week of ${data.week}` });
+    } else {
+      toast({ title: "Send failed", description: data.message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="space-y-6 pt-4 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Weekly Skill Sheets</h2>
+          <p className="text-sm text-muted-foreground">
+            Week of {week} · {signupCount !== null ? `${signupCount} students signed up` : "loading…"}
+          </p>
+        </div>
+        <Button onClick={handleSendNow} disabled={sending || docs.length === 0}>
+          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+          Send Now
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Upload a skill sheet</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-3">
+            <Select value={selectedClass} onValueChange={setSelectedClass}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+              className="flex-1"
+            />
+            <Button onClick={handleUpload} disabled={!file || uploading}>
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Uploaded this week ({docs.length})</CardTitle></CardHeader>
+        <CardContent>
+          {docs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No docs uploaded yet for {week}</p>
+          ) : (
+            <div className="space-y-2">
+              {docs.map(doc => {
+                const name = doc.pathname.split("/").pop() ?? doc.pathname;
+                return (
+                  <div key={doc.url} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-mono">{name}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.url)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground">
+        Emails auto-send every Monday at 9am CST. Each student only receives sheets for the classes they signed up for.
+      </p>
     </div>
   );
 }

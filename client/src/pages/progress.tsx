@@ -1,421 +1,141 @@
-import { useState, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { GraduationCap, Upload, Check, X, Pencil, BookOpen, Flame, Trophy, Loader2, ArrowRight, Search, ChevronDown, ChevronUp, Link as LinkIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Zap, Flame, Trophy, ArrowRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
 import { Link } from "wouter";
-import type { Course } from "@shared/schema";
 
-type ProgramCourse = { name: string; code: string; description: string };
-type MatchedTool = { id: string; name: string; courseId?: string | null };
-type SyllabusUnit = { name: string; outcomes: string[]; matchedTools: MatchedTool[] };
 type ProfileData = {
   xp: number; level: number; streak: number;
-  program?: string;
-  programCourses?: ProgramCourse[];
-  selectedCourseNames?: string[];
-  syllabusOutcomes?: Record<string, SyllabusUnit[]>;
   badges: { id: string; name: string; icon: string }[];
 };
 
 function xpToNext(level: number) { return level * 500; }
 function xpInLevel(xp: number, level: number) { return xp - (level - 1) * 500; }
 
-// ─── Step 1: Program input ─────────────────────────────────────────────────
-
-function ProgramSetup({ onDone }: { onDone: () => void }) {
-  const [step, setStep] = useState<"input" | "loading" | "select" | "uploading">("input");
-  const [programText, setProgramText] = useState("");
-  const [courses, setCourses] = useState<ProgramCourse[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
-  const [uploadedCourses, setUploadedCourses] = useState<Set<string>>(new Set());
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const searchMut = useMutation({
-    mutationFn: async (program: string) => {
-      const res = await apiRequest("POST", "/api/user/program", { program });
-      return res.json() as Promise<{ program: string; courses: ProgramCourse[] }>;
-    },
-    onSuccess: (data) => {
-      setCourses(data.courses);
-      setStep("select");
-    },
-  });
-
-  const saveMut = useMutation({
-    mutationFn: async (names: string[]) => {
-      const res = await apiRequest("PUT", "/api/user/program-courses", { selectedCourseNames: names });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
-      onDone();
-    },
-  });
-
-  const uploadMut = useMutation({
-    mutationFn: async ({ file, courseName }: { file: File; courseName: string }) => {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token ?? "";
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("courseName", courseName);
-      const res = await fetch("/api/user/syllabus-outcomes", {
-        method: "POST",
-        body: fd,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json() as Promise<{ courseName: string; units: SyllabusUnit[] }>;
-    },
-    onSuccess: (data, vars) => {
-      setUploadedCourses(p => new Set([...Array.from(p), vars.courseName]));
-      setUploadingFor(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
-    },
-    onError: () => setUploadingFor(null),
-  });
-
-  const toggle = (name: string) => {
-    setSelected(s => {
-      const n = new Set(Array.from(s));
-      n.has(name) ? n.delete(name) : n.add(name);
-      return n;
-    });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && uploadingFor) {
-      uploadMut.mutate({ file, courseName: uploadingFor });
-    }
-    e.target.value = "";
-  };
-
-  if (step === "input") {
-    return (
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-primary/15 border-2 border-primary/30 flex items-center justify-center mx-auto mb-3">
-            <GraduationCap className="w-7 h-7 text-primary" />
-          </div>
-          <h2 className="text-lg font-black">What program are you in?</h2>
-          <p className="text-xs text-muted-foreground mt-1 font-mono">We'll find your courses automatically</p>
-        </div>
-        <input
-          value={programText}
-          onChange={e => setProgramText(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && programText.trim() && searchMut.mutate(programText.trim())}
-          placeholder="e.g. University of Saskatchewan, Engineering, Year 2"
-          className="w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-sm font-mono focus:outline-none focus:border-primary transition-colors"
-        />
-        <button
-          onClick={() => searchMut.mutate(programText.trim())}
-          disabled={!programText.trim() || searchMut.isPending}
-          className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
-        >
-          {searchMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-          {searchMut.isPending ? "Finding your courses…" : "Find My Courses"}
-        </button>
-        {searchMut.isError && (
-          <div className="text-xs text-destructive text-center font-mono space-y-1">
-            <p>Failed to fetch courses. Try again.</p>
-            {searchMut.error instanceof Error && (
-              <p className="text-[10px] opacity-70 break-all">{searchMut.error.message}</p>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (step === "select") {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-black">Select Your Courses</h2>
-            <p className="text-xs text-muted-foreground font-mono">Pick the ones you're taking this term</p>
-          </div>
-          <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">{selected.size} selected</span>
-        </div>
-
-        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-          {courses.map(c => {
-            const isSelected = selected.has(c.name);
-            const isUploaded = uploadedCourses.has(c.name);
-            return (
-              <div
-                key={c.code}
-                onClick={() => toggle(c.name)}
-                className={cn(
-                  "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
-                  isSelected
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:border-primary/40"
-                )}
-              >
-                <div className={cn(
-                  "w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all",
-                  isSelected ? "bg-primary border-primary" : "border-border"
-                )}>
-                  {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono font-bold text-muted-foreground">{c.code}</span>
-                    {isUploaded && <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">syllabus added</span>}
-                  </div>
-                  <p className="text-sm font-semibold leading-tight mt-0.5">{c.name}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{c.description}</p>
-                </div>
-                {isSelected && !isUploaded && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setUploadingFor(c.name); fileRef.current?.click(); }}
-                    className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border text-[10px] font-mono hover:border-primary transition-colors"
-                    title="Upload syllabus PDF to map learning outcomes to platform lessons"
-                  >
-                    {uploadMut.isPending && uploadingFor === c.name
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <Upload className="w-3 h-3" />}
-                    syllabus
-                  </button>
-                )}
-                {isSelected && isUploaded && uploadMut.isPending && uploadingFor === c.name && (
-                  <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" /> mapping…
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileChange} />
-
-        <button
-          onClick={() => saveMut.mutate(Array.from(selected))}
-          disabled={selected.size === 0 || saveMut.isPending}
-          className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
-        >
-          {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-          {saveMut.isPending ? "Saving…" : `Confirm ${selected.size} Course${selected.size !== 1 ? "s" : ""}`}
-        </button>
-      </div>
-    );
-  }
-
-  return null;
+function polarToXY(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number) {
+  const s = polarToXY(cx, cy, r, startDeg);
+  const e = polarToXY(cx, cy, r, endDeg);
+  const sweep = ((endDeg - startDeg) + 360) % 360;
+  const la = sweep > 180 ? 1 : 0;
+  return `M ${s.x.toFixed(1)} ${s.y.toFixed(1)} A ${r} ${r} 0 ${la} 1 ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
 }
 
-// ─── Profile done state ────────────────────────────────────────────────────
-
-function SyllabusOutcomes({ units }: { units: SyllabusUnit[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const matched = units.filter(u => u.matchedTools.length > 0);
-  if (matched.length === 0) return null;
-  const shown = expanded ? matched : matched.slice(0, 2);
-  return (
-    <div className="mt-2 space-y-1.5">
-      <p className="text-[9px] font-mono uppercase tracking-wider text-primary">Study Path ({matched.length} units matched)</p>
-      {shown.map(unit => (
-        <div key={unit.name} className="pl-2 border-l-2 border-primary/30 space-y-0.5">
-          <p className="text-[10px] font-mono text-muted-foreground truncate">{unit.name}</p>
-          {unit.matchedTools.map(t => (
-            <Link key={t.id} href={t.courseId ? `/learn/${t.courseId}/${t.id}` : "#"}>
-              <div className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline cursor-pointer">
-                <LinkIcon className="w-2.5 h-2.5 flex-shrink-0" />
-                <span className="truncate">{t.name}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      ))}
-      {matched.length > 2 && (
-        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors">
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? "Show less" : `+${matched.length - 2} more units`}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ProfileCard({ profile, onEdit }: { profile: ProfileData; onEdit: () => void }) {
-  const { data: courses } = useQuery<Course[]>({ queryKey: ["/api/courses"] });
-
-  const selected = profile.selectedCourseNames ?? [];
-  const programCourses = (profile.programCourses ?? []) as ProgramCourse[];
-  const syllabusOutcomes = profile.syllabusOutcomes ?? {};
-  const xpForNext = xpToNext(profile.level);
-  const xpPct = (xpInLevel(profile.xp, profile.level) / xpForNext) * 100;
-
-  return (
-    <div className="space-y-4">
-      {/* XP card */}
-      <div className="rounded-2xl border-2 border-foreground overflow-hidden shadow-hard">
-        <div className="bg-foreground px-4 py-4">
-          <div className="flex items-end justify-between mb-3">
-            <div>
-              <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/40">Level</p>
-              <p className="text-4xl font-black font-mono text-white leading-none">{profile.level}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-white/40">Total XP</p>
-              <p className="text-2xl font-bold font-mono text-primary">{profile.xp}</p>
-            </div>
-          </div>
-          <div className="h-2 rounded-full overflow-hidden bg-white/10">
-            <div className="h-full rounded-full transition-all duration-700 bg-primary" style={{ width: `${Math.min(xpPct, 100)}%` }} />
-          </div>
-          <p className="text-[9px] font-mono text-white/30 mt-1.5">
-            {xpInLevel(profile.xp, profile.level)} / {xpForNext} XP to Level {profile.level + 1}
-          </p>
-        </div>
-        <div className="bg-card px-4 py-3 flex gap-4">
-          <div className="flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-red-500" />
-            <span className="text-sm font-bold font-mono">{profile.streak}d streak</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold font-mono">{profile.badges?.length ?? 0} badges</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Program */}
-      <div className="rounded-2xl border-2 border-foreground overflow-hidden shadow-hard">
-        <div className="bg-foreground px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-white/60" />
-            <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-white/40">Academic Program</p>
-          </div>
-          <button onClick={onEdit} className="flex items-center gap-1 text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors">
-            <Pencil className="w-3 h-3" /> Edit
-          </button>
-        </div>
-        <div className="bg-card px-4 py-3">
-          <p className="text-sm font-bold mb-2">{profile.program}</p>
-          {selected.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">This Term's Courses</p>
-              {selected.map(name => {
-                const pc = programCourses.find(c => c.name === name);
-                const platformCourse = courses?.find(c => c.name === name || c.name.includes(name.split(" ")[0]));
-                return (
-                  <div key={name} className="px-2 py-1.5 rounded-lg bg-background border border-border">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate">{name}</p>
-                        {pc && <p className="text-[10px] text-muted-foreground font-mono">{pc.code}</p>}
-                      </div>
-                      {syllabusOutcomes[name] && (
-                        <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">mapped</span>
-                      )}
-                    </div>
-                    {syllabusOutcomes[name] && <SyllabusOutcomes units={syllabusOutcomes[name]} />}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Badges */}
-      {profile.badges?.length > 0 && (
-        <div className="rounded-2xl border-2 border-foreground overflow-hidden shadow-hard">
-          <div className="bg-foreground px-4 py-3">
-            <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-white/40">Achievements</p>
-          </div>
-          <div className="bg-card px-4 py-3 flex flex-wrap gap-2">
-            {profile.badges.map(b => (
-              <div key={b.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-medium text-primary">
-                <span>{b.icon}</span><span>{b.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main export ───────────────────────────────────────────────────────────
+const GAUGE = { cx: 80, cy: 78, r: 56, start: 210, end: 150, sweep: 300 };
 
 export default function ProgressPage() {
   const { user } = useAuth();
-  const [editing, setEditing] = useState(false);
-
   const { data: profile, isLoading } = useQuery<ProfileData>({
     queryKey: ["/api/user/profile"],
     staleTime: 30_000,
   });
 
-  const deleteMut = useMutation({
-    mutationFn: () => apiRequest("DELETE", "/api/user/program"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
-      setEditing(true);
-    },
-  });
-
   const firstName = user?.displayName?.split(" ")[0] ?? "Adventurer";
-  const hasProgram = profile?.program && !editing;
+  const level = profile?.level ?? 1;
+  const xp = profile?.xp ?? 0;
+  const streak = profile?.streak ?? 0;
+  const inLevelXp = xpInLevel(xp, level);
+  const needed = xpToNext(level);
+  const xpPct = Math.min((inLevelXp / needed) * 100, 100);
+  const fillEndDeg = GAUGE.start + (xpPct / 100) * GAUGE.sweep;
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "white" }} className="pb-32 md:pb-10">
+
       {/* Header */}
-      <div className="px-5 pt-6 pb-5 bg-foreground relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, hsl(var(--primary)/.25), transparent 70%)" }} />
-        <div className="relative z-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/40">Your Profile</p>
-          <h1 className="text-3xl font-black tracking-tight text-white">{firstName}</h1>
-          {profile?.program && (
-            <p className="text-xs font-mono text-white/50 mt-1 truncate">{profile.program}</p>
-          )}
-        </div>
+      <div style={{ padding: "40px 24px 28px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <p style={{ color: "rgba(255,255,255,0.28)", fontSize: 11, fontFamily: "monospace", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+          Your Profile
+        </p>
+        <h1 style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{firstName}.</h1>
       </div>
 
-      <div className="px-5 py-5 space-y-5">
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px" }}>
         {isLoading ? (
           <div className="space-y-3">
-            <Skeleton className="h-40 w-full rounded-2xl" />
-            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-36 w-full rounded-2xl" style={{ background: "#1a1a1a" }} />
+            <Skeleton className="h-28 w-full rounded-2xl" style={{ background: "#1a1a1a" }} />
           </div>
-        ) : hasProgram ? (
-          <ProfileCard profile={profile!} onEdit={() => { setEditing(true); }} />
         ) : (
-          <div className="rounded-2xl border-2 border-foreground overflow-hidden shadow-hard">
-            <div className="bg-foreground px-4 py-3">
-              <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-white/40">Academic Setup</p>
+          <>
+            {/* Top stat cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[
+                { icon: <Zap className="w-4 h-4" />, accent: "#facc15", label: "Total XP",   value: xp.toLocaleString() },
+                { icon: <Flame className="w-4 h-4" />, accent: "#f97316", label: "Day Streak", value: `${streak}` },
+                { icon: <Trophy className="w-4 h-4" />, accent: "#a855f7", label: "Level",     value: `${level}` },
+              ].map(card => (
+                <div key={card.label} style={{ background: "#141414", borderRadius: 14, padding: "18px 16px", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div style={{ color: card.accent, marginBottom: 10 }}>{card.icon}</div>
+                  <p style={{ fontSize: 30, fontWeight: 900, lineHeight: 1, marginBottom: 5 }}>{card.value}</p>
+                  <p style={{ color: "rgba(255,255,255,0.28)", fontSize: 10, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.07em" }}>{card.label}</p>
+                </div>
+              ))}
             </div>
-            <div className="bg-card px-4 py-4">
-              <ProgramSetup onDone={() => setEditing(false)} />
-            </div>
-          </div>
-        )}
 
-        {/* Edit mode shows setup again */}
-        {editing && profile?.program && (
-          <div className="rounded-2xl border-2 border-border overflow-hidden">
-            <div className="px-4 py-3 bg-muted flex items-center justify-between">
-              <p className="text-xs font-mono font-bold">Update Program</p>
-              <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
+            {/* XP level gauge */}
+            <div style={{ background: "#141414", borderRadius: 14, padding: "20px 24px", border: "1px solid rgba(255,255,255,0.07)", marginBottom: 10, display: "flex", alignItems: "center", gap: 24 }}>
+              <div style={{ flexShrink: 0 }}>
+                <svg width={160} height={110} viewBox="0 0 160 110" style={{ overflow: "visible" }}>
+                  <path d={arcPath(GAUGE.cx, GAUGE.cy, GAUGE.r, GAUGE.start, GAUGE.end)}
+                    fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={10} strokeLinecap="round" />
+                  {xpPct > 0.5 && (
+                    <path d={arcPath(GAUGE.cx, GAUGE.cy, GAUGE.r, GAUGE.start, fillEndDeg)}
+                      fill="none" stroke="#facc15" strokeWidth={10} strokeLinecap="round" />
+                  )}
+                  <text x={GAUGE.cx} y={GAUGE.cy + 8} textAnchor="middle" fill="white" fontSize={24} fontWeight={900} fontFamily="system-ui">
+                    {Math.round(xpPct)}%
+                  </text>
+                  <text x={GAUGE.cx} y={GAUGE.cy + 24} textAnchor="middle" fill="rgba(255,255,255,0.28)" fontSize={10} fontFamily="system-ui">
+                    to level {level + 1}
+                  </text>
+                </svg>
+              </div>
+              <div>
+                <p style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>Level {level}</p>
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 10 }}>
+                  {inLevelXp.toLocaleString()} / {needed.toLocaleString()} XP
+                </p>
+                <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.08)", width: 140, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${xpPct}%`, background: "#facc15", borderRadius: 2, transition: "width 1s ease" }} />
+                </div>
+                <p style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, marginTop: 8 }}>
+                  {(needed - inLevelXp).toLocaleString()} XP to go
+                </p>
+              </div>
             </div>
-            <div className="px-4 py-4">
-              <ProgramSetup onDone={() => setEditing(false)} />
-            </div>
-          </div>
+
+            {/* Continue CTA */}
+            <Link href="/classes">
+              <div style={{ background: "#4ade80", borderRadius: 12, padding: "14px 18px", cursor: "pointer", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 }}
+                className="hover:brightness-95 transition-all">
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: "rgba(0,0,0,0.45)", fontSize: 10, fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>Ready?</p>
+                  <p style={{ color: "black", fontWeight: 900, fontSize: 15 }}>Continue Learning</p>
+                </div>
+                <ArrowRight style={{ color: "rgba(0,0,0,0.4)" }} className="w-5 h-5" />
+              </div>
+            </Link>
+
+            {/* Badges */}
+            {profile?.badges && profile.badges.length > 0 && (
+              <div style={{ background: "#141414", borderRadius: 14, padding: "18px 20px", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>
+                  Achievements
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {profile.badges.map(b => (
+                    <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 100, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                      <span>{b.icon}</span><span>{b.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

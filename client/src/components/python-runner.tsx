@@ -32,7 +32,7 @@ async function getPyodide(): Promise<any> {
   return window._pyodideLoading;
 }
 
-export function PythonRunner({ initialCode }: { initialCode: string }) {
+export function PythonRunner({ initialCode, minRows = 4 }: { initialCode: string; minRows?: number }) {
   const [code, setCode] = useState(initialCode.trim());
   const [output, setOutput] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "done" | "error">("idle");
@@ -90,6 +90,7 @@ sys.stderr = _cap
           <button onClick={reset} className="p-1 rounded text-[#6c7086] hover:text-[#cdd6f4] transition-colors" title="Reset code">
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+          <span className="text-[10px] text-[#6c7086] font-mono hidden sm:inline">⌘↵</span>
           <button
             onClick={run}
             disabled={status === "loading" || status === "running"}
@@ -106,19 +107,24 @@ sys.stderr = _cap
         value={code}
         onChange={e => setCode(e.target.value)}
         spellCheck={false}
-        rows={Math.max(4, code.split("\n").length + 1)}
+        rows={Math.max(minRows, code.split("\n").length + 1)}
         className="w-full bg-[#1e1e2e] text-[#cdd6f4] font-mono text-sm px-4 py-3 outline-none resize-none leading-relaxed"
         style={{ tabSize: 4 }}
         onKeyDown={e => {
           if (e.key === "Tab") {
             e.preventDefault();
-            const s = e.currentTarget.selectionStart;
-            const end = e.currentTarget.selectionEnd;
+            const el = e.currentTarget;
+            const s = el.selectionStart;
+            const end = el.selectionEnd;
             const next = code.slice(0, s) + "    " + code.slice(end);
             setCode(next);
             requestAnimationFrame(() => {
-              e.currentTarget.selectionStart = e.currentTarget.selectionEnd = s + 4;
+              el.selectionStart = el.selectionEnd = s + 4;
             });
+          }
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            if (status !== "loading" && status !== "running") run();
           }
         }}
       />

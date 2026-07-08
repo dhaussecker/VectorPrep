@@ -10,3 +10,5 @@ vite.config.ts.*
 api/*.js
 api/*.cjs
 !api/index.js
+.vercel
+.env*

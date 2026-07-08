@@ -1,4 +1,7 @@
 import express, { type Express, type Request } from "express";
+import { Resend } from "resend";
+import { put, list, del, getDownloadUrl } from "@vercel/blob";
+import pg from "pg";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
@@ -55,6 +58,15 @@ const uploadDocs = multer({
   fileFilter: (_req, file, cb) => {
     if (/\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(file.originalname)) cb(null, true);
     else cb(new Error("Only PDF and image files are allowed"));
+  },
+});
+
+const uploadPdfMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.pdf$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error("Only PDF files are allowed"));
   },
 });
 
@@ -203,12 +215,187 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   setupAuth(app);
 
   // ─── Public signup (no auth required) ─────────────────────────────────────
+  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
   app.post("/api/signup", async (req, res) => {
     const { email, classes } = req.body as { email?: string; classes?: string[] };
     if (!email) return res.status(400).json({ message: "Email required" });
-    console.log(`[signup] ${email} — classes: ${(classes ?? []).join(", ")}`);
-    // TODO: persist to DB once connection is restored
+    const classList = (classes ?? []).join(", ");
+    console.log(`[signup] ${email} — classes: ${classList}`);
+
+    if (resend) {
+      const classLines = (classes ?? []).map(c => `<li>${c}</li>`).join("");
+      await resend.emails.send({
+        from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
+        to: email,
+        subject: "Hey, it's Quisly 👋",
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
+            <h2 style="margin:0 0 16px;font-size:22px">Hey! I just got your message.</h2>
+            <p style="margin:0 0 12px;color:#444;line-height:1.6">
+              I'm going to get started on skill sheets for your classes:
+            </p>
+            <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
+              ${classLines}
+            </ul>
+            <p style="margin:0 0 24px;color:#444;line-height:1.6">
+              I'll reach out before your next exam with exactly the skills and examples you need to not only pass but ace it.
+            </p>
+            <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
+          </div>
+        `,
+      }).catch(e => console.error("[resend]", e));
+    }
+
+    // Persist signup to Supabase
+    try {
+      const db = new pg.Client(process.env.POSTGRES_URL!);
+      await db.connect();
+      await db.query(
+        `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
+         ON CONFLICT (email) DO UPDATE SET classes = $2`,
+        [email, classes ?? []]
+      );
+      await db.end();
+    } catch (e) {
+      console.warn("[signup] DB write failed:", (e as Error).message);
+    }
+
     return res.status(200).json({ ok: true });
+  });
+
+  // ─── Admin: upload weekly PDF for a class ──────────────────────────────────
+  app.post("/api/admin/upload-weekly", uploadPdfMemory.single("file"), async (req, res) => {
+    const adminKey = req.headers["x-admin-key"];
+    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+
+    const className = (req.body.className as string | undefined)?.trim();
+    if (!className || !req.file) return res.status(400).json({ message: "className and file required" });
+
+    const week = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const blob = await put(`weekly/${week}/${className}.pdf`, req.file.buffer, {
+      access: "private",
+      contentType: "application/pdf",
+    });
+
+    console.log(`[upload] ${className} → ${blob.url}`);
+    return res.json({ ok: true, url: blob.url, className, week });
+  });
+
+  // ─── Admin: list this week's uploaded docs ────────────────────────────────
+  app.get("/api/admin/weekly-docs", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"];
+    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+
+    const week = (req.query.week as string) || new Date().toISOString().slice(0, 10);
+    const { blobs } = await list({ prefix: `weekly/${week}/` });
+    return res.json({ week, docs: blobs.map(b => ({ url: b.url, pathname: b.pathname })) });
+  });
+
+  // ─── Admin: signup count ──────────────────────────────────────────────────
+  app.get("/api/admin/signup-count", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"];
+    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM public.signups");
+    await db.end();
+    return res.json({ count: rows[0].count });
+  });
+
+  // ─── Admin: delete a weekly doc ───────────────────────────────────────────
+  app.delete("/api/admin/weekly-docs", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"];
+    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+    const { url } = req.body as { url?: string };
+    if (!url) return res.status(400).json({ message: "url required" });
+    await del(url);
+    return res.json({ ok: true });
+  });
+
+  // ─── Cron: send weekly emails (called by Vercel cron every Monday 9am) ────
+  app.post("/api/cron/send-weekly", async (req, res) => {
+    const cronSecret = req.headers["authorization"];
+    if (cronSecret !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!resend) return res.status(500).json({ message: "Resend not configured" });
+
+    const week = new Date().toISOString().slice(0, 10);
+
+    // 1. Get all uploaded docs for this week
+    const { blobs } = await list({ prefix: `weekly/${week}/` });
+    if (blobs.length === 0) {
+      console.log("[cron] No docs uploaded for this week, skipping");
+      return res.json({ ok: true, sent: 0, reason: "no docs" });
+    }
+
+    // Map class name → blob url
+    const docsByClass: Record<string, string> = {};
+    for (const blob of blobs) {
+      // pathname: weekly/YYYY-MM-DD/CLASSNAME.pdf
+      const className = blob.pathname.split("/").pop()!.replace(".pdf", "");
+      docsByClass[className] = blob.url;
+    }
+
+    // 2. Get all signups from DB
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
+      "SELECT email, classes FROM public.signups"
+    );
+    await db.end();
+
+    // 3. Send one personalized email per signup
+    let sent = 0;
+    const uploadedClasses = Object.keys(docsByClass);
+
+    for (const { email, classes } of signups) {
+      const matchedClasses = classes.filter(c =>
+        uploadedClasses.some(u => u.toLowerCase() === c.toLowerCase().replace(/\s+/g, ""))
+      );
+      if (matchedClasses.length === 0) continue;
+
+      // Fetch PDF buffers and attach
+      const attachments = await Promise.all(
+        matchedClasses.map(async c => {
+          const key = uploadedClasses.find(u => u.toLowerCase() === c.toLowerCase().replace(/\s+/g, ""))!;
+          const downloadUrl = await getDownloadUrl(docsByClass[key]);
+          const buf = await fetch(downloadUrl).then(r => r.arrayBuffer());
+          return {
+            filename: `${c.replace(/\s+/g, "_")}_Week_${week}.pdf`,
+            content: Buffer.from(buf).toString("base64"),
+          };
+        })
+      );
+
+      const classListHtml = matchedClasses.map(c => `<li>${c}</li>`).join("");
+      await resend.emails.send({
+        from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
+        to: email,
+        subject: `Your weekly skill sheets are here`,
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
+            <h2 style="margin:0 0 16px;font-size:22px">Your skill sheets for this week</h2>
+            <p style="margin:0 0 12px;color:#444;line-height:1.6">
+              Attached are the skill sheets for:
+            </p>
+            <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
+              ${classListHtml}
+            </ul>
+            <p style="margin:0 0 24px;color:#444;line-height:1.6">
+              Everything you need to know this week — one page per class, nothing more.
+            </p>
+            <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
+          </div>
+        `,
+        attachments,
+      });
+
+      sent++;
+      console.log(`[cron] Sent to ${email} — ${matchedClasses.join(", ")}`);
+    }
+
+    return res.json({ ok: true, sent, week, docsUploaded: blobs.length });
   });
 
   try {
