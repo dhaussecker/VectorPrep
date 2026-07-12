@@ -38,10 +38,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { format } from "date-fns";
 import {
   Plus, Pencil, Trash2, BookOpen, ClipboardCheck,
   FolderOpen, Loader2, ImageIcon, Video, GraduationCap, FileText,
   Copy, Ticket, Check, Upload, X, Sparkles, Library, Wand2, Mail, Send,
+  CalendarIcon, ChevronDown, Users, ListChecks,
 } from "lucide-react";
 import { MATH_ANIMATIONS, MathAnimation } from "@/components/math-animations";
 import { useToast } from "@/hooks/use-toast";
@@ -280,8 +285,10 @@ export default function AdminPage() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 md:px-8 py-6">
+      <div className="px-6 md:px-8 py-6 space-y-6">
         <WeeklyEmailsManager />
+        <RenderSkillSheetTool />
+        <AllSignupsPanel />
       </div>
     </div>
   );
@@ -2354,25 +2361,43 @@ function AIChatPanel({ currentContent, onContentUpdate, context }: {
 
 // ─── Weekly Emails Manager ────────────────────────────────────────────────────
 
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY ?? "";
 const CLASSES = ["MATH110", "GE122", "GE152", "GE172", "CMPT142", "MATH133"];
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: session } = await supabase.auth.getSession();
+  const token = session.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+type WeeklyDoc = {
+  id: string;
+  className: string;
+  filename: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  skills: { number?: number; title: string }[] | null;
+};
+
+type DocRecipient = { email: string; excluded: boolean };
 
 function WeeklyEmailsManager() {
   const { toast } = useToast();
   const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
   const [file, setFile] = useState<File | null>(null);
+  const [skillsFile, setSkillsFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [docs, setDocs] = useState<{ url: string; pathname: string }[]>([]);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [docs, setDocs] = useState<WeeklyDoc[]>([]);
   const [signupCount, setSignupCount] = useState<number | null>(null);
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [expandedSkillsId, setExpandedSkillsId] = useState<string | null>(null);
+  const [docClassFilter, setDocClassFilter] = useState<string>("all");
+  const [recipientsByDoc, setRecipientsByDoc] = useState<Record<string, DocRecipient[]>>({});
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const week = new Date().toISOString().slice(0, 10);
+  const skillsFileRef = useRef<HTMLInputElement>(null);
 
   async function loadDocs() {
-    const res = await fetch(`/api/admin/weekly-docs?week=${week}`, {
-      headers: { "x-admin-key": ADMIN_KEY },
-    });
+    const res = await fetch("/api/admin/weekly-docs", { headers: await authHeaders() });
     if (res.ok) {
       const data = await res.json();
       setDocs(data.docs);
@@ -2380,9 +2405,7 @@ function WeeklyEmailsManager() {
   }
 
   async function loadSignups() {
-    const res = await fetch("/api/admin/signup-count", {
-      headers: { "x-admin-key": ADMIN_KEY },
-    });
+    const res = await fetch("/api/admin/signup-count", { headers: await authHeaders() });
     if (res.ok) {
       const data = await res.json();
       setSignupCount(data.count);
@@ -2391,65 +2414,118 @@ function WeeklyEmailsManager() {
 
   useState(() => { loadDocs(); loadSignups(); });
 
+  async function loadRecipientsFor(docId: string) {
+    const res = await fetch(`/api/admin/weekly-docs/${docId}/recipients`, { headers: await authHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      setRecipientsByDoc(prev => ({ ...prev, [docId]: data.recipients }));
+    }
+  }
+
+  function toggleExpand(docId: string) {
+    if (expandedDocId === docId) {
+      setExpandedDocId(null);
+      return;
+    }
+    setExpandedDocId(docId);
+    if (!recipientsByDoc[docId]) loadRecipientsFor(docId);
+  }
+
+  async function toggleExclude(docId: string, email: string, excluded: boolean) {
+    setRecipientsByDoc(prev => ({
+      ...prev,
+      [docId]: prev[docId]?.map(r => (r.email === email ? { ...r, excluded } : r)) ?? [],
+    }));
+    const res = await fetch(`/api/admin/weekly-docs/${docId}/exclude`, {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ email, excluded }),
+    });
+    if (!res.ok) {
+      setRecipientsByDoc(prev => ({
+        ...prev,
+        [docId]: prev[docId]?.map(r => (r.email === email ? { ...r, excluded: !excluded } : r)) ?? [],
+      }));
+      toast({ title: "Failed to update recipient", variant: "destructive" });
+    }
+  }
+
+  async function handleScheduleChange(docId: string, date: Date | undefined) {
+    if (!date) return;
+    const res = await fetch(`/api/admin/weekly-docs/${docId}/schedule`, {
+      method: "PUT",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ date: format(date, "yyyy-MM-dd") }),
+    });
+    if (res.ok) {
+      loadDocs();
+    } else {
+      toast({ title: "Failed to update schedule", variant: "destructive" });
+    }
+  }
+
   async function handleUpload() {
     if (!file) return;
     setUploading(true);
     const form = new FormData();
     form.append("file", file);
     form.append("className", selectedClass);
+    if (skillsFile) form.append("skillsFile", skillsFile);
     const res = await fetch("/api/admin/upload-weekly", {
       method: "POST",
-      headers: { "x-admin-key": ADMIN_KEY },
+      headers: await authHeaders(),
       body: form,
     });
     setUploading(false);
     if (res.ok) {
-      toast({ title: "Uploaded", description: `${selectedClass}.pdf ready for this week` });
+      toast({ title: "Uploaded", description: `${file.name} ready` });
       setFile(null);
+      setSkillsFile(null);
       if (fileRef.current) fileRef.current.value = "";
+      if (skillsFileRef.current) skillsFileRef.current.value = "";
       loadDocs();
     } else {
-      toast({ title: "Upload failed", variant: "destructive" });
+      const data = await res.json().catch(() => null);
+      toast({ title: "Upload failed", description: data?.message, variant: "destructive" });
     }
   }
 
-  async function handleDelete(url: string) {
-    await fetch("/api/admin/weekly-docs", {
+  async function handleDelete(docId: string) {
+    await fetch(`/api/admin/weekly-docs/${docId}`, {
       method: "DELETE",
-      headers: { "x-admin-key": ADMIN_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      headers: await authHeaders(),
     });
-    loadDocs();
+    setDocs(prev => prev.filter(d => d.id !== docId));
   }
 
-  async function handleSendNow() {
-    setSending(true);
-    const res = await fetch("/api/cron/send-weekly", {
+  async function handleSendNow(docId: string) {
+    setSendingId(docId);
+    const res = await fetch(`/api/admin/weekly-docs/${docId}/send-now`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${import.meta.env.VITE_CRON_SECRET ?? ""}` },
+      headers: await authHeaders(),
     });
-    setSending(false);
+    setSendingId(null);
     const data = await res.json();
     if (res.ok) {
-      toast({ title: `Sent to ${data.sent} students`, description: `Week of ${data.week}` });
+      toast({ title: `Sent to ${data.sent} students`, description: `${data.docsSent} doc(s) went out` });
+      loadDocs();
     } else {
       toast({ title: "Send failed", description: data.message, variant: "destructive" });
     }
   }
 
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  const filteredDocs = docClassFilter === "all"
+    ? docs
+    : docs.filter(d => normalize(d.className) === normalize(docClassFilter));
+
   return (
-    <div className="space-y-6 pt-4 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Weekly Skill Sheets</h2>
-          <p className="text-sm text-muted-foreground">
-            Week of {week} · {signupCount !== null ? `${signupCount} students signed up` : "loading…"}
-          </p>
-        </div>
-        <Button onClick={handleSendNow} disabled={sending || docs.length === 0}>
-          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-          Send Now
-        </Button>
+    <div className="space-y-6 pt-4 max-w-3xl">
+      <div>
+        <h2 className="text-lg font-bold">Weekly Skill Sheets</h2>
+        <p className="text-sm text-muted-foreground">
+          {signupCount !== null ? `${signupCount} students signed up` : "loading…"}
+        </p>
       </div>
 
       <Card>
@@ -2475,27 +2551,133 @@ function WeeklyEmailsManager() {
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             </Button>
           </div>
+          <div className="flex items-center gap-2">
+            <Input
+              ref={skillsFileRef}
+              type="file"
+              accept=".js"
+              onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
+              className="flex-1"
+            />
+            <span className="text-xs text-muted-foreground shrink-0">Skills file (optional)</span>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Uploaded this week ({docs.length})</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm">
+            Skill sheets ({filteredDocs.length}{docClassFilter !== "all" ? ` of ${docs.length}` : ""})
+          </CardTitle>
+          <Select value={docClassFilter} onValueChange={setDocClassFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </CardHeader>
         <CardContent>
-          {docs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No docs uploaded yet for {week}</p>
+          {filteredDocs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No skill sheets{docClassFilter !== "all" ? ` for ${docClassFilter}` : " uploaded yet"}
+            </p>
           ) : (
             <div className="space-y-2">
-              {docs.map(doc => {
-                const name = doc.pathname.split("/").pop() ?? doc.pathname;
+              {filteredDocs.map(doc => {
+                const recipients = recipientsByDoc[doc.id];
+                const expanded = expandedDocId === doc.id;
                 return (
-                  <div key={doc.url} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-mono">{name}</span>
+                  <div key={doc.id} className="rounded-lg border">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-mono truncate">{doc.filename}</span>
+                        <Badge variant="secondary" className="shrink-0">{doc.className}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                              {format(new Date(doc.scheduledFor), "MMM d")}
+                              {doc.sentAt && ` (sent)`}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={new Date(doc.scheduledFor)}
+                              onSelect={date => handleScheduleChange(doc.id, date)}
+                              disabled={{ before: new Date() }}
+                            />
+                            <p className="px-3 pb-3 text-xs text-muted-foreground">
+                              Always sends at 9am CST on the chosen date. Picking a new date re-arms this doc to send again.
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                        {doc.skills && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpandedSkillsId(v => (v === doc.id ? null : doc.id))}
+                          >
+                            <ListChecks className="w-3.5 h-3.5 mr-1.5" />
+                            {doc.skills.length}
+                            <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${expandedSkillsId === doc.id ? "rotate-180" : ""}`} />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => toggleExpand(doc.id)}>
+                          <Users className="w-3.5 h-3.5 mr-1.5" />
+                          {recipients ? recipients.filter(r => !r.excluded).length : "…"}
+                          <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleSendNow(doc.id)}
+                          disabled={sendingId === doc.id}
+                        >
+                          {sendingId === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.url)}>
-                      <X className="w-4 h-4" />
-                    </Button>
+                    {expandedSkillsId === doc.id && doc.skills && (
+                      <div className="border-t px-3 py-2 space-y-1">
+                        {doc.skills.map((s, i) => (
+                          <div key={i} className="text-sm flex items-center gap-2">
+                            {s.number != null && <Badge variant="outline" className="text-xs shrink-0">{s.number}</Badge>}
+                            <span>{s.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {expanded && (
+                      <div className="border-t px-3 py-2 space-y-2">
+                        {!recipients ? (
+                          <p className="text-sm text-muted-foreground">Loading…</p>
+                        ) : recipients.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No signups match {doc.className}</p>
+                        ) : (
+                          recipients.map(r => (
+                            <div key={r.email} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={!r.excluded}
+                                onCheckedChange={checked => toggleExclude(doc.id, r.email, !checked)}
+                              />
+                              <span className={`text-sm ${r.excluded ? "text-muted-foreground line-through" : ""}`}>
+                                {r.email}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -2505,8 +2687,250 @@ function WeeklyEmailsManager() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Emails auto-send every Monday at 9am CST. Each student only receives sheets for the classes they signed up for.
+        Emails auto-send every day at 9am CST once a doc's scheduled date arrives. Docs due in the same send are
+        bundled into one email per student. Each student only receives sheets for the classes they signed up for,
+        unless opted out above.
       </p>
     </div>
+  );
+}
+
+// ─── Render skill sheet (standalone verification tool for the new in-app
+// PDF renderer — generates a PDF from a .js skills file without going through
+// the upload/scheduling flow, so the output can be compared against the local
+// build.js + wkhtmltopdf result) ───────────────────────────────────────────
+
+function RenderSkillSheetTool() {
+  const { toast } = useToast();
+  const [skillsFile, setSkillsFile] = useState<File | null>(null);
+  const [rendering, setRendering] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleRender() {
+    if (!skillsFile) return;
+    setRendering(true);
+    const form = new FormData();
+    form.append("skillsFile", skillsFile);
+    const res = await fetch("/api/admin/render-skill-sheet", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: form,
+    });
+    setRendering(false);
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = skillsFile.name.replace(/\.js$/i, ".pdf");
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "PDF generated" });
+    } else {
+      const data = await res.json().catch(() => null);
+      toast({ title: "Render failed", description: data?.message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle className="text-sm">Render skill sheet PDF (test tool)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Upload a skills .js file to generate its PDF using the new in-app renderer, for comparing against the local build.js output.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            ref={fileRef}
+            type="file"
+            accept=".js"
+            onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
+            className="flex-1"
+          />
+          <Button onClick={handleRender} disabled={!skillsFile || rendering}>
+            {rendering ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+            Generate PDF
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── All Signups (full list, independent of any week's uploads) ──────────────
+
+function AllSignupsPanel() {
+  const { toast } = useToast();
+  const [signups, setSignups] = useState<{ email: string; classes: string[] }[]>([]);
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState("");
+  const [newClasses, setNewClasses] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [editClassesText, setEditClassesText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function loadSignups() {
+    setLoading(true);
+    const res = await fetch("/api/admin/signups", { headers: await authHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      setSignups(data.signups);
+    }
+    setLoading(false);
+  }
+
+  useState(() => { loadSignups(); });
+
+  function toggleNewClass(c: string, checked: boolean) {
+    setNewClasses(prev => (checked ? [...prev, c] : prev.filter(x => x !== c)));
+  }
+
+  async function handleAddSignup() {
+    const email = newEmail.trim();
+    if (!email) return;
+    setAdding(true);
+    const res = await fetch("/api/admin/signups", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ email, classes: newClasses }),
+    });
+    setAdding(false);
+    if (res.ok) {
+      toast({ title: "Signup added" });
+      setNewEmail("");
+      setNewClasses([]);
+      loadSignups();
+    } else {
+      toast({ title: "Failed to add signup", variant: "destructive" });
+    }
+  }
+
+  function startEdit(s: { email: string; classes: string[] }) {
+    setEditingEmail(s.email);
+    setEditClassesText(s.classes.join("\n"));
+  }
+
+  async function saveEdit(email: string) {
+    setSaving(true);
+    const classes = editClassesText.split("\n").map(s => s.trim()).filter(Boolean);
+    const res = await fetch("/api/admin/signups", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ email, classes }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setEditingEmail(null);
+      loadSignups();
+    } else {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  }
+
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  const filtered = classFilter === "all"
+    ? signups
+    : signups.filter(s => s.classes.some(c => normalize(c) === normalize(classFilter)));
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-sm">
+          All Signups ({filtered.length}{classFilter !== "all" ? ` of ${signups.length}` : ""})
+        </CardTitle>
+        <Select value={classFilter} onValueChange={setClassFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All classes</SelectItem>
+            {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border p-3 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">Add a signup manually</p>
+          <div className="flex gap-2">
+            <Input
+              type="email"
+              placeholder="student@email.com"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleAddSignup} disabled={!newEmail.trim() || adding}>
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {CLASSES.map(c => (
+              <label key={c} className="flex items-center gap-1.5 text-sm">
+                <Checkbox
+                  checked={newClasses.includes(c)}
+                  onCheckedChange={checked => toggleNewClass(c, !!checked)}
+                />
+                {c}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No signups{classFilter !== "all" ? ` for ${classFilter}` : ""} yet
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map(s => (
+              <div key={s.email} className="rounded-lg border px-3 py-2">
+                {editingEmail === s.email ? (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium">{s.email}</span>
+                    <Textarea
+                      value={editClassesText}
+                      onChange={e => setEditClassesText(e.target.value)}
+                      rows={4}
+                      className="font-mono text-xs"
+                      placeholder="One class per line — exactly as it should be matched"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => setEditingEmail(null)}>Cancel</Button>
+                      <Button size="sm" onClick={() => saveEdit(s.email)} disabled={saving}>
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm">{s.email}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {s.classes.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">(no classes)</span>
+                        ) : (
+                          s.classes.map((c, i) => (
+                            <Badge key={i} variant="outline" className="text-xs font-mono">{c}</Badge>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => startEdit(s)} className="shrink-0">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

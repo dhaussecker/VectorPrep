@@ -5,6 +5,8 @@ import pg from "pg";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
+import { randomUUID } from "crypto";
+import vm from "vm";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import { storage } from "./storage";
@@ -13,6 +15,7 @@ import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
 import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
+import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,8 +68,13 @@ const uploadPdfMemory = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (/\.pdf$/i.test(file.originalname)) cb(null, true);
-    else cb(new Error("Only PDF files are allowed"));
+    if (file.fieldname === "skillsFile") {
+      if (/\.js$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error("Skills file must be a .js file"));
+    } else {
+      if (/\.pdf$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error("Only PDF files are allowed"));
+    }
   },
 });
 
@@ -247,14 +255,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }).catch(e => console.error("[resend]", e));
     }
 
-    // Persist signup to Supabase
+    // Persist signup to Supabase — merge with any existing classes for this
+    // email rather than overwriting, so a repeat signup adds classes instead
+    // of silently dropping the ones from a previous signup.
     try {
       const db = new pg.Client(process.env.POSTGRES_URL!);
       await db.connect();
+      const { rows: existingRows } = await db.query<{ classes: string[] }>(
+        "SELECT classes FROM public.signups WHERE email = $1",
+        [email]
+      );
+      const existingClasses = existingRows[0]?.classes ?? [];
+      const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+      const seen = new Set(existingClasses.map(normalize));
+      const mergedClasses = [...existingClasses];
+      for (const c of classes ?? []) {
+        if (!seen.has(normalize(c))) {
+          mergedClasses.push(c);
+          seen.add(normalize(c));
+        }
+      }
       await db.query(
         `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
          ON CONFLICT (email) DO UPDATE SET classes = $2`,
-        [email, classes ?? []]
+        [email, mergedClasses]
       );
       await db.end();
     } catch (e) {
@@ -264,38 +288,277 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.status(200).json({ ok: true });
   });
 
-  // ─── Admin: upload weekly PDF for a class ──────────────────────────────────
-  app.post("/api/admin/upload-weekly", uploadPdfMemory.single("file"), async (req, res) => {
-    const adminKey = req.headers["x-admin-key"];
-    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+  // ─── Weekly send helpers ────────────────────────────────────────────────────
 
-    const className = (req.body.className as string | undefined)?.trim();
-    if (!className || !req.file) return res.status(400).json({ message: "className and file required" });
+  // Next upcoming Monday 15:00 UTC (9am CST), or today 15:00 UTC if today is
+  // Monday and that time hasn't passed yet — the default schedule for a newly
+  // uploaded file until the admin picks a different date.
+  function defaultScheduledFor(from: Date = new Date()): Date {
+    const day = from.getUTCDay();
+    const daysUntilMonday = (1 - day + 7) % 7;
+    const candidate = new Date(Date.UTC(
+      from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + daysUntilMonday, 15, 0, 0
+    ));
+    if (candidate <= from) candidate.setUTCDate(candidate.getUTCDate() + 7);
+    return candidate;
+  }
 
-    const week = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const blob = await put(`weekly/${week}/${className}.pdf`, req.file.buffer, {
-      access: "private",
-      contentType: "application/pdf",
+  type WeeklyDocRow = {
+    id: string;
+    class_name: string;
+    filename: string;
+    url: string;
+    scheduled_for: string;
+    sent_at: string | null;
+    skills: { number?: number; title: string }[] | null;
+  };
+
+  // Safely evaluate an uploaded skill-sheet content module (the same .js files
+  // fed to the local build.js PDF renderer) in an isolated vm context with only
+  // module/exports available — no require, no fs, no network, no process — so
+  // an uploaded file can't reach outside its own object literal.
+  function evalSkillSheetJs(code: string): any {
+    const sandboxModule: { exports: any } = { exports: {} };
+    const context = vm.createContext({ module: sandboxModule, exports: sandboxModule.exports });
+    const script = new vm.Script(code, { filename: "skill-sheet.js" });
+    script.runInContext(context, { timeout: 1000 });
+    return sandboxModule.exports;
+  }
+
+  function parseSkillSheetJs(code: string): { number?: number; title: string }[] {
+    const skills = evalSkillSheetJs(code)?.SKILLS;
+    if (!Array.isArray(skills)) throw new Error("No SKILLS array found in file");
+    return skills.map((s: any) => ({ number: s.number, title: String(s.title ?? "Untitled") }));
+  }
+
+  function parseFullSkillSheetJs(code: string): SkillSheetContent {
+    const content = evalSkillSheetJs(code);
+    if (!content?.SHEET_TITLE || !Array.isArray(content?.SKILLS)) {
+      throw new Error("File must export SHEET_TITLE and a SKILLS array");
+    }
+    return content as SkillSheetContent;
+  }
+
+  // Renders HTML to a PDF via PdfBroker.io's hosted wkhtmltopdf engine — same
+  // engine the local build.js targets (minimizes visual differences from
+  // Dylan's already-tuned CSS), free tier (200 req/month), no card required.
+  // Kept as the one place a vendor is referenced so swapping providers later
+  // is a one-function change.
+  async function getPdfBrokerAccessToken(): Promise<string> {
+    const res = await fetch("https://login.pdfbroker.io/connect/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.PDF_BROKER_CLIENT_ID!,
+        client_secret: process.env.PDF_BROKER_CLIENT_SECRET!,
+        grant_type: "client_credentials",
+      }),
     });
+    if (!res.ok) throw new Error(`Failed to get PdfBroker access token: ${res.status}`);
+    const data = await res.json();
+    return data.access_token;
+  }
 
-    console.log(`[upload] ${className} → ${blob.url}`);
-    return res.json({ ok: true, url: blob.url, className, week });
+  async function renderHtmlToPdf(html: string): Promise<Buffer> {
+    if (!process.env.PDF_BROKER_CLIENT_ID || !process.env.PDF_BROKER_CLIENT_SECRET) {
+      throw new Error("PDF_BROKER_CLIENT_ID/PDF_BROKER_CLIENT_SECRET not configured");
+    }
+    const token = await getPdfBrokerAccessToken();
+
+    const res = await fetch("https://api.pdfbroker.io/api/pdf/wkhtmltopdf", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/pdf",
+      },
+      body: JSON.stringify({ htmlBase64String: Buffer.from(html, "utf-8").toString("base64") }),
+    });
+    if (!res.ok) throw new Error(`PDF render failed: ${res.status} ${await res.text()}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  // Sends every doc that's currently due, bundling — per student — everything
+  // due in this run into one email. Used by both the cron poller and "Send Now"
+  // (which just marks one doc due-now and calls this, so anything else already
+  // due gets swept up in the same email naturally).
+  async function sendDueDocs(): Promise<{ sent: number; docsSent: number }> {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows: due } = await db.query<WeeklyDocRow>(
+      "SELECT * FROM public.weekly_docs WHERE scheduled_for <= NOW() AND sent_at IS NULL"
+    );
+    if (due.length === 0) {
+      await db.end();
+      return { sent: 0, docsSent: 0 };
+    }
+
+    const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
+      "SELECT email, classes FROM public.signups"
+    );
+    const { rows: exclusions } = await db.query<{ doc_id: string; email: string }>(
+      "SELECT doc_id, email FROM public.weekly_doc_exclusions WHERE doc_id = ANY($1)",
+      [due.map(d => d.id)]
+    );
+    await db.end();
+
+    const excludedPairs = new Set(exclusions.map(e => `${e.doc_id}:${e.email}`));
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+
+    let sent = 0;
+    if (resend) {
+      for (const { email, classes } of signups) {
+        const matchedDocs = due.filter(d =>
+          classes.some(c => normalize(c) === normalize(d.class_name)) &&
+          !excludedPairs.has(`${d.id}:${email}`)
+        );
+        if (matchedDocs.length === 0) continue;
+
+        const attachments = await Promise.all(
+          matchedDocs.map(async d => {
+            const downloadUrl = getDownloadUrl(d.url);
+            const fileRes = await fetch(downloadUrl, {
+              headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+            });
+            if (!fileRes.ok) throw new Error(`Failed to download ${d.filename}: ${fileRes.status}`);
+            const buf = await fileRes.arrayBuffer();
+            return { filename: d.filename, content: Buffer.from(buf).toString("base64") };
+          })
+        );
+
+        const classListHtml = matchedDocs.map(d => `<li>${d.class_name} — ${d.filename}</li>`).join("");
+        await resend.emails.send({
+          from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
+          to: email,
+          subject: `Your weekly skill sheets are here`,
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
+              <h2 style="margin:0 0 16px;font-size:22px">Your skill sheets for this week</h2>
+              <p style="margin:0 0 12px;color:#444;line-height:1.6">
+                Attached are the skill sheets for:
+              </p>
+              <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
+                ${classListHtml}
+              </ul>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Everything you need to know this week — one page per class, nothing more.
+              </p>
+              <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
+            </div>
+          `,
+          attachments,
+        });
+
+        sent++;
+        console.log(`[weekly-send] Sent to ${email} — ${matchedDocs.map(d => d.filename).join(", ")}`);
+      }
+    }
+
+    const markDb = new pg.Client(process.env.POSTGRES_URL!);
+    await markDb.connect();
+    await markDb.query("UPDATE public.weekly_docs SET sent_at = NOW() WHERE id = ANY($1)", [due.map(d => d.id)]);
+    await markDb.end();
+
+    return { sent, docsSent: due.length };
+  }
+
+  // ─── Admin: upload a weekly skill sheet ────────────────────────────────────
+  app.post(
+    "/api/admin/upload-weekly",
+    requireAdmin,
+    uploadPdfMemory.fields([{ name: "file", maxCount: 1 }, { name: "skillsFile", maxCount: 1 }]),
+    async (req, res) => {
+      const className = (req.body.className as string | undefined)?.trim();
+      const files = req.files as { file?: Express.Multer.File[]; skillsFile?: Express.Multer.File[] };
+      const pdfFile = files.file?.[0];
+      if (!className || !pdfFile) return res.status(400).json({ message: "className and file required" });
+
+      let skills: { number?: number; title: string }[] | null = null;
+      const skillsFile = files.skillsFile?.[0];
+      if (skillsFile) {
+        try {
+          skills = parseSkillSheetJs(skillsFile.buffer.toString("utf-8"));
+        } catch (e) {
+          return res.status(400).json({ message: `Failed to parse skills file: ${(e as Error).message}` });
+        }
+      }
+
+      const id = randomUUID();
+      const sanitizedFilename = pdfFile.originalname.replace(/[^\w.\-]/g, "_");
+      const blob = await put(`weekly-docs/${id}/${sanitizedFilename}`, pdfFile.buffer, {
+        access: "private",
+        contentType: "application/pdf",
+      });
+
+      const scheduledFor = defaultScheduledFor();
+      const db = new pg.Client(process.env.POSTGRES_URL!);
+      await db.connect();
+      await db.query(
+        `INSERT INTO public.weekly_docs (id, class_name, filename, pathname, url, scheduled_for, skills)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [id, className, pdfFile.originalname, blob.pathname, blob.url, scheduledFor, skills ? JSON.stringify(skills) : null]
+      );
+      await db.end();
+
+      console.log(`[upload] ${className} — ${pdfFile.originalname} → ${blob.url}${skills ? ` (${skills.length} skills)` : ""}`);
+      return res.json({ id, className, filename: pdfFile.originalname, scheduledFor, sentAt: null, skills });
+    },
+  );
+
+  // ─── Admin: list all uploaded skill sheets ─────────────────────────────────
+  app.get("/api/admin/weekly-docs", requireAdmin, async (_req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<WeeklyDocRow>(
+      "SELECT * FROM public.weekly_docs ORDER BY scheduled_for ASC"
+    );
+    await db.end();
+
+    return res.json({
+      docs: rows.map(r => ({
+        id: r.id,
+        className: r.class_name,
+        filename: r.filename,
+        scheduledFor: r.scheduled_for,
+        sentAt: r.sent_at,
+        skills: r.skills,
+      })),
+    });
   });
 
-  // ─── Admin: list this week's uploaded docs ────────────────────────────────
-  app.get("/api/admin/weekly-docs", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"];
-    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+  // ─── Admin: render a skill-sheet PDF from a .js content file (standalone
+  // verification tool for the new in-app renderer — not yet wired into
+  // upload-weekly/weekly_docs) ─────────────────────────────────────────────
+  app.post(
+    "/api/admin/render-skill-sheet",
+    requireAdmin,
+    uploadPdfMemory.fields([{ name: "skillsFile", maxCount: 1 }]),
+    async (req, res) => {
+      const files = req.files as { skillsFile?: Express.Multer.File[] };
+      const skillsFile = files.skillsFile?.[0];
+      if (!skillsFile) return res.status(400).json({ message: "skillsFile required" });
 
-    const week = (req.query.week as string) || new Date().toISOString().slice(0, 10);
-    const { blobs } = await list({ prefix: `weekly/${week}/` });
-    return res.json({ week, docs: blobs.map(b => ({ url: b.url, pathname: b.pathname })) });
-  });
+      let content: SkillSheetContent;
+      try {
+        content = parseFullSkillSheetJs(skillsFile.buffer.toString("utf-8"));
+      } catch (e) {
+        return res.status(400).json({ message: `Failed to parse skills file: ${(e as Error).message}` });
+      }
+
+      try {
+        const html = buildSkillSheetHtml(content);
+        const pdf = await renderHtmlToPdf(html);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${content.SHEET_TITLE.replace(/[^\w.\-]/g, "_")}.pdf"`);
+        return res.send(pdf);
+      } catch (e) {
+        return res.status(500).json({ message: (e as Error).message });
+      }
+    },
+  );
 
   // ─── Admin: signup count ──────────────────────────────────────────────────
-  app.get("/api/admin/signup-count", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"];
-    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
+  app.get("/api/admin/signup-count", requireAdmin, async (req, res) => {
     const db = new pg.Client(process.env.POSTGRES_URL!);
     await db.connect();
     const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM public.signups");
@@ -303,99 +566,143 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.json({ count: rows[0].count });
   });
 
-  // ─── Admin: delete a weekly doc ───────────────────────────────────────────
-  app.delete("/api/admin/weekly-docs", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"];
-    if (adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ message: "Unauthorized" });
-    const { url } = req.body as { url?: string };
-    if (!url) return res.status(400).json({ message: "url required" });
-    await del(url);
+  // ─── Admin: list all signups (email + classes), independent of weekly docs ─
+  app.get("/api/admin/signups", requireAdmin, async (_req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<{ email: string; classes: string[] }>(
+      "SELECT email, classes FROM public.signups ORDER BY email"
+    );
+    await db.end();
+    return res.json({ signups: rows });
+  });
+
+  // ─── Admin: manually add/update a signup ───────────────────────────────────
+  app.post("/api/admin/signups", requireAdmin, async (req, res) => {
+    const { email, classes } = req.body as { email?: string; classes?: string[] };
+    if (!email) return res.status(400).json({ message: "email required" });
+
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    await db.query(
+      `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
+       ON CONFLICT (email) DO UPDATE SET classes = $2`,
+      [email, classes ?? []]
+    );
+    await db.end();
+
     return res.json({ ok: true });
   });
 
-  // ─── Cron: send weekly emails (called by Vercel cron every Monday 9am) ────
+  // ─── Admin: delete a weekly doc ───────────────────────────────────────────
+  app.delete("/api/admin/weekly-docs/:id", requireAdmin, async (req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<{ url: string }>(
+      "SELECT url FROM public.weekly_docs WHERE id = $1",
+      [req.params.id]
+    );
+    if (rows[0]) await del(rows[0].url);
+    await db.query("DELETE FROM public.weekly_docs WHERE id = $1", [req.params.id]);
+    await db.end();
+    return res.json({ ok: true });
+  });
+
+  // ─── Admin: change one doc's scheduled send date ───────────────────────────
+  app.put("/api/admin/weekly-docs/:id/schedule", requireAdmin, async (req, res) => {
+    const { date } = req.body as { date?: string };
+    if (!date) return res.status(400).json({ message: "date required" });
+
+    const scheduledFor = new Date(`${date}T15:00:00.000Z`);
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    await db.query(
+      "UPDATE public.weekly_docs SET scheduled_for = $1, sent_at = NULL WHERE id = $2",
+      [scheduledFor, req.params.id]
+    );
+    await db.end();
+
+    return res.json({ ok: true, scheduledFor });
+  });
+
+  // ─── Admin: preview who a specific doc's send will go to ───────────────────
+  app.get("/api/admin/weekly-docs/:id/recipients", requireAdmin, async (req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows: docRows } = await db.query<{ class_name: string }>(
+      "SELECT class_name FROM public.weekly_docs WHERE id = $1",
+      [req.params.id]
+    );
+    if (!docRows[0]) {
+      await db.end();
+      return res.status(404).json({ message: "Doc not found" });
+    }
+    const className = docRows[0].class_name;
+
+    const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
+      "SELECT email, classes FROM public.signups"
+    );
+    const { rows: exclusions } = await db.query<{ email: string }>(
+      "SELECT email FROM public.weekly_doc_exclusions WHERE doc_id = $1",
+      [req.params.id]
+    );
+    await db.end();
+
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+    const excludedEmails = new Set(exclusions.map(e => e.email));
+    const recipients = signups
+      .filter(s => s.classes.some(c => normalize(c) === normalize(className)))
+      .map(s => ({ email: s.email, excluded: excludedEmails.has(s.email) }));
+
+    return res.json({ recipients });
+  });
+
+  // ─── Admin: opt a recipient in/out of one doc's send ───────────────────────
+  app.post("/api/admin/weekly-docs/:id/exclude", requireAdmin, async (req, res) => {
+    const { email, excluded } = req.body as { email?: string; excluded?: boolean };
+    if (!email) return res.status(400).json({ message: "email required" });
+
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    if (excluded) {
+      await db.query(
+        `INSERT INTO public.weekly_doc_exclusions (doc_id, email) VALUES ($1, $2)
+         ON CONFLICT (doc_id, email) DO NOTHING`,
+        [req.params.id, email]
+      );
+    } else {
+      await db.query(
+        "DELETE FROM public.weekly_doc_exclusions WHERE doc_id = $1 AND email = $2",
+        [req.params.id, email]
+      );
+    }
+    await db.end();
+
+    return res.json({ ok: true });
+  });
+
+  // ─── Admin: send one doc immediately (bundles anything else already due) ──
+  app.post("/api/admin/weekly-docs/:id/send-now", requireAdmin, async (req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    await db.query(
+      "UPDATE public.weekly_docs SET scheduled_for = NOW(), sent_at = NULL WHERE id = $1",
+      [req.params.id]
+    );
+    await db.end();
+
+    const result = await sendDueDocs();
+    return res.json({ ok: true, ...result });
+  });
+
+  // ─── Cron: poll for due scheduled sends (Vercel cron, daily 9am CST) ──────
   app.post("/api/cron/send-weekly", async (req, res) => {
     const cronSecret = req.headers["authorization"];
     if (cronSecret !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!resend) return res.status(500).json({ message: "Resend not configured" });
-
-    const week = new Date().toISOString().slice(0, 10);
-
-    // 1. Get all uploaded docs for this week
-    const { blobs } = await list({ prefix: `weekly/${week}/` });
-    if (blobs.length === 0) {
-      console.log("[cron] No docs uploaded for this week, skipping");
-      return res.json({ ok: true, sent: 0, reason: "no docs" });
-    }
-
-    // Map class name → blob url
-    const docsByClass: Record<string, string> = {};
-    for (const blob of blobs) {
-      // pathname: weekly/YYYY-MM-DD/CLASSNAME.pdf
-      const className = blob.pathname.split("/").pop()!.replace(".pdf", "");
-      docsByClass[className] = blob.url;
-    }
-
-    // 2. Get all signups from DB
-    const db = new pg.Client(process.env.POSTGRES_URL!);
-    await db.connect();
-    const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
-      "SELECT email, classes FROM public.signups"
-    );
-    await db.end();
-
-    // 3. Send one personalized email per signup
-    let sent = 0;
-    const uploadedClasses = Object.keys(docsByClass);
-
-    for (const { email, classes } of signups) {
-      const matchedClasses = classes.filter(c =>
-        uploadedClasses.some(u => u.toLowerCase() === c.toLowerCase().replace(/\s+/g, ""))
-      );
-      if (matchedClasses.length === 0) continue;
-
-      // Fetch PDF buffers and attach
-      const attachments = await Promise.all(
-        matchedClasses.map(async c => {
-          const key = uploadedClasses.find(u => u.toLowerCase() === c.toLowerCase().replace(/\s+/g, ""))!;
-          const downloadUrl = await getDownloadUrl(docsByClass[key]);
-          const buf = await fetch(downloadUrl).then(r => r.arrayBuffer());
-          return {
-            filename: `${c.replace(/\s+/g, "_")}_Week_${week}.pdf`,
-            content: Buffer.from(buf).toString("base64"),
-          };
-        })
-      );
-
-      const classListHtml = matchedClasses.map(c => `<li>${c}</li>`).join("");
-      await resend.emails.send({
-        from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
-        to: email,
-        subject: `Your weekly skill sheets are here`,
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
-            <h2 style="margin:0 0 16px;font-size:22px">Your skill sheets for this week</h2>
-            <p style="margin:0 0 12px;color:#444;line-height:1.6">
-              Attached are the skill sheets for:
-            </p>
-            <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
-              ${classListHtml}
-            </ul>
-            <p style="margin:0 0 24px;color:#444;line-height:1.6">
-              Everything you need to know this week — one page per class, nothing more.
-            </p>
-            <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
-          </div>
-        `,
-        attachments,
-      });
-
-      sent++;
-      console.log(`[cron] Sent to ${email} — ${matchedClasses.join(", ")}`);
-    }
-
-    return res.json({ ok: true, sent, week, docsUploaded: blobs.length });
+    const result = await sendDueDocs();
+    console.log(`[cron] ${result.docsSent} doc(s) due — sent to ${result.sent} recipient(s)`);
+    return res.json({ ok: true, ...result });
   });
 
   try {
@@ -413,6 +720,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program_courses jsonb;
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selected_course_names jsonb;
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS syllabus_outcomes jsonb;
+
+      DROP TABLE IF EXISTS public.weekly_send_exclusions;
+      DROP TABLE IF EXISTS public.weekly_send_schedule;
+
+      CREATE TABLE IF NOT EXISTS public.weekly_docs (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        class_name text NOT NULL,
+        filename text NOT NULL,
+        pathname text NOT NULL UNIQUE,
+        url text NOT NULL,
+        uploaded_at timestamptz NOT NULL DEFAULT now(),
+        scheduled_for timestamptz NOT NULL,
+        sent_at timestamptz
+      );
+
+      ALTER TABLE public.weekly_docs ADD COLUMN IF NOT EXISTS skills jsonb;
+
+      CREATE TABLE IF NOT EXISTS public.weekly_doc_exclusions (
+        doc_id uuid NOT NULL REFERENCES public.weekly_docs(id) ON DELETE CASCADE,
+        email text NOT NULL,
+        PRIMARY KEY (doc_id, email)
+      );
     `);
     await migPool.end();
   } catch (e) { console.warn("Profile column migration skipped:", e); }
