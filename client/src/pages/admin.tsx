@@ -1787,6 +1787,7 @@ function InlineEdit({ value, onChange, className, placeholder }: {
 }
 
 function AISyllabusImport() {
+  const [mode, setMode] = useState<"course" | "timeline">("course");
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [outline, setOutline] = useState<CourseOutline | null>(null);
@@ -1939,6 +1940,19 @@ function AISyllabusImport() {
 
   return (
     <div className="space-y-4 mt-4">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={mode === "course" ? "default" : "outline"} onClick={() => setMode("course")}>
+          Build a Course
+        </Button>
+        <Button size="sm" variant={mode === "timeline" ? "default" : "outline"} onClick={() => setMode("timeline")}>
+          Extract Weekly Sheet Timeline
+        </Button>
+      </div>
+
+      {mode === "timeline" ? (
+        <SyllabusTimelineExtractor />
+      ) : (
+      <>
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -2284,7 +2298,172 @@ function AISyllabusImport() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </div>
+  );
+}
+
+// ─── Syllabus timeline extraction (step 1 of weekly-skill-sheet automation —
+// extracts topics + schedule dates only; no skill generation or scheduling) ──
+
+type SyllabusTopicRow = {
+  number: number;
+  title: string;
+  description: string;
+  weekLabel: string;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+function SyllabusTimelineExtractor() {
+  const { toast } = useToast();
+  const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+  const [file, setFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [topics, setTopics] = useState<SyllabusTopicRow[] | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleExtract() {
+    if (!file) return;
+    setExtracting(true);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/admin/syllabus-timeline", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: form,
+    });
+    setExtracting(false);
+    if (res.ok) {
+      const data = await res.json();
+      setTopics(data.topics);
+    } else {
+      const data = await res.json().catch(() => null);
+      toast({ title: "Extraction failed", description: data?.message, variant: "destructive" });
+    }
+  }
+
+  function updateTopic(idx: number, field: keyof SyllabusTopicRow, value: string | null) {
+    setTopics(prev => prev?.map((t, i) => (i === idx ? { ...t, [field]: value } : t)) ?? null);
+  }
+
+  async function handleSave() {
+    if (!topics) return;
+    setSaving(true);
+    const res = await fetch("/api/admin/syllabus-timeline/save", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ className: selectedClass, topics }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      toast({ title: `Saved timeline for ${selectedClass}` });
+    } else {
+      toast({ title: "Save failed", variant: "destructive" });
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          Extract Weekly Sheet Timeline
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Upload a course syllabus (PDF). AI will extract each numbered topic and, where the schedule
+          makes it clear, the calendar dates it's covered — for reference when uploading skill sheets
+          for this class. Review and correct anything below before saving.
+        </p>
+
+        <div className="flex gap-3">
+          <Select value={selectedClass} onValueChange={setSelectedClass}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            onChange={e => setFile(e.target.files?.[0] ?? null)}
+            className="flex-1"
+          />
+          <Button onClick={handleExtract} disabled={!file || extracting}>
+            {extracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+            Extract
+          </Button>
+        </div>
+
+        {topics && (
+          <div className="space-y-2">
+            {topics.map((t, i) => (
+              <div key={i} className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="shrink-0">{t.number}</Badge>
+                  <Input
+                    value={t.title}
+                    onChange={e => updateTopic(i, "title", e.target.value)}
+                    className="flex-1 font-medium"
+                  />
+                  <span className="text-xs text-muted-foreground shrink-0 w-40 truncate">{t.weekLabel}</span>
+                </div>
+                <Textarea
+                  value={t.description}
+                  onChange={e => updateTopic(i, "description", e.target.value)}
+                  rows={2}
+                  className="text-xs"
+                />
+                <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                        {t.startDate ? format(new Date(t.startDate), "MMM d") : "Start date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={t.startDate ? new Date(t.startDate) : undefined}
+                        onSelect={date => date && updateTopic(i, "startDate", format(date, "yyyy-MM-dd"))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                        {t.endDate ? format(new Date(t.endDate), "MMM d") : "End date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={t.endDate ? new Date(t.endDate) : undefined}
+                        onSelect={date => date && updateTopic(i, "endDate", format(date, "yyyy-MM-dd"))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            ))}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Save timeline for {selectedClass}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

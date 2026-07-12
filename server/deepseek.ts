@@ -233,6 +233,49 @@ Rules:
   }
 }
 
+export interface SyllabusTopic {
+  number: number;
+  title: string;
+  description: string;
+  weekLabel: string;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export async function extractSyllabusTimeline(syllabusText: string): Promise<SyllabusTopic[]> {
+  const systemPrompt = `You are an academic administrator analyzing a course syllabus. Extract each numbered topic/unit (e.g. RLO, Module, Chapter, Week-topic) along with the calendar dates when that topic is covered, using the syllabus's schedule/timeline section.
+
+Return ONLY valid JSON (no markdown fences) as an array:
+[
+  {
+    "number": 1,
+    "title": "string - topic name, without its number prefix (e.g. \\"Basic Differentiation and Integration\\")",
+    "description": "string - 1-2 sentence summary of what the topic covers, from the learning outcomes section",
+    "weekLabel": "string - the week/date label exactly as it appears in the schedule (e.g. \\"Week 3 (Sep 15-19)\\")",
+    "startDate": "string or null - the topic's start date in YYYY-MM-DD format if determinable, else null",
+    "endDate": "string or null - the topic's end date in YYYY-MM-DD format if determinable, else null"
+  }
+]
+
+Rules:
+- Match each topic's number (from the learning-outcomes list) to its row(s) in the schedule table by name/topic, not by position — schedules are often irregular (a topic can span multiple weeks, weeks can have no topic, weeks can be skipped entirely).
+- If a topic's date can't be confidently determined from the schedule, set startDate/endDate to null rather than guessing.
+- Infer the year from context (e.g. the course term/semester) when only month/day are given in the schedule.
+- Return one entry per numbered topic found in the learning outcomes section, in order.`;
+
+  const userMessage = `Syllabus:\n${syllabusText.slice(0, 12000)}\n\nExtract topics and their schedule dates.`;
+
+  const raw = await callDeepSeek(systemPrompt, userMessage, 3000, 0.2);
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (!Array.isArray(parsed)) throw new Error("not array");
+    return parsed as SyllabusTopic[];
+  } catch {
+    throw new Error("Failed to parse syllabus timeline");
+  }
+}
+
 export interface SyllabusScanResult {
   courseName: string;
   sections: {

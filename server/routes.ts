@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
-import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills } from "./deepseek";
+import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills, extractSyllabusTimeline } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
 import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
@@ -741,6 +741,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         doc_id uuid NOT NULL REFERENCES public.weekly_docs(id) ON DELETE CASCADE,
         email text NOT NULL,
         PRIMARY KEY (doc_id, email)
+      );
+
+      CREATE TABLE IF NOT EXISTS public.syllabus_timelines (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        class_name text NOT NULL,
+        extracted_at timestamptz NOT NULL DEFAULT now(),
+        topics jsonb NOT NULL
       );
     `);
     await migPool.end();
@@ -1488,6 +1495,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to generate content" });
     }
+  });
+
+  // ─── Syllabus → topic/timeline extraction (step 1 of weekly-skill-sheet ────
+  // automation — extracts topics + schedule dates only, no skill generation
+  // or auto-scheduling yet) ───────────────────────────────────────────────
+  app.post("/api/admin/syllabus-timeline", requireAdmin, uploadDocs.single("file"), async (req, res) => {
+    try {
+      const file = req.file as Express.Multer.File;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+      if (!/\.pdf$/i.test(file.originalname)) return res.status(400).json({ message: "Please upload a PDF file" });
+
+      const buffer = fs.readFileSync(file.path);
+      const pdfParse = (await import("pdf-parse")).default;
+      const pdfData = await pdfParse(buffer);
+      try { fs.unlinkSync(file.path); } catch {}
+
+      const topics = await extractSyllabusTimeline(pdfData.text);
+      res.json({ topics });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to extract syllabus timeline" });
+    }
+  });
+
+  app.post("/api/admin/syllabus-timeline/save", requireAdmin, async (req, res) => {
+    const { className, topics } = req.body as { className?: string; topics?: unknown };
+    if (!className || !Array.isArray(topics)) return res.status(400).json({ message: "className and topics required" });
+
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    await db.query(
+      "INSERT INTO public.syllabus_timelines (class_name, topics) VALUES ($1, $2)",
+      [className, JSON.stringify(topics)]
+    );
+    await db.end();
+
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/admin/syllabus-timeline", requireAdmin, async (req, res) => {
+    const className = req.query.className as string | undefined;
+    if (!className) return res.status(400).json({ message: "className required" });
+
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<{ id: string; extracted_at: string; topics: unknown }>(
+      "SELECT id, extracted_at, topics FROM public.syllabus_timelines WHERE class_name = $1 ORDER BY extracted_at DESC LIMIT 1",
+      [className]
+    );
+    await db.end();
+
+    return res.json({ timeline: rows[0] ?? null });
   });
 
   app.post("/api/admin/ai-chat", requireAdmin, async (req, res) => {
