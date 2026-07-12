@@ -36,7 +36,14 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f9fafb",
+        color: "hsl(150, 20%, 15%)",
+        ["--muted-foreground" as string]: "43 8% 48%",
+      } as React.CSSProperties}
+    >
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 24px" }}>
         <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 0" }}>
           <button
