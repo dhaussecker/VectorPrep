@@ -8,11 +8,18 @@ export interface CourseStructure {
     icon: string;
     skills: {
       title: string;
-      content: string;
+      content?: string;
     }[];
   }[];
 }
 
+// Outline only (no lesson content) — the admin reviews/edits this before
+// generateSkillContent (a separate call per skill, its own token budget)
+// fills in real content in the next step. This prompt used to also ask for
+// full lesson content inline, which threw away that split: content was
+// regenerated from scratch in step 2 anyway, so the inline content was
+// always discarded, and asking for it here blew past max_tokens (hard
+// truncation, invalid JSON) on any syllabus with more than a few skills.
 const SYSTEM_PROMPT = `You are an expert course designer. Given the content of uploaded syllabi, lecture notes, or practice exams, extract a structured course outline.
 
 Return ONLY valid JSON (no markdown fences) matching this exact schema:
@@ -27,8 +34,7 @@ Return ONLY valid JSON (no markdown fences) matching this exact schema:
       "icon": "string - single emoji or short symbol",
       "skills": [
         {
-          "title": "string - skill/concept name",
-          "content": "string - markdown lesson content with LaTeX math (use $...$ for inline, $$...$$ for display). Include definitions, key formulas, examples, and explanations. Be thorough — this is the student's primary learning material."
+          "title": "string - skill/concept name, short and specific (3-8 words)"
         }
       ]
     }
@@ -38,7 +44,7 @@ Return ONLY valid JSON (no markdown fences) matching this exact schema:
 Guidelines:
 - Create meaningful topics grouping related concepts
 - Each topic should have 2-6 skills/learn cards
-- Skill content should be detailed markdown with LaTeX formulas where appropriate
+- Do not include lesson content — titles only. Content is generated separately per skill later.
 - Use the document structure (chapters, sections, problem sets) to inform topic organization
 - If the document is a practice exam, infer topics from the question categories
 - If the document is lecture notes, organize by the lecture's natural sections`;
