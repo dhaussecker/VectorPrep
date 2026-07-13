@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, ArrowRight, FileText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { CLASSES } from "@shared/classes";
 
 interface ScanResult {
   courseName: string;
@@ -18,21 +19,23 @@ export function SyllabusOnboarding({ onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Set<number>>(new Set());
   const [creatingCourse, setCreatingCourse] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [classCode, setClassCode] = useState<string>(CLASSES[0]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
-    if (!file.name.endsWith(".pdf")) { setError("Please upload a PDF file."); return; }
+  async function handleFiles(fileList: File[]) {
+    const files = fileList.filter(f => f.name.toLowerCase().endsWith(".pdf"));
+    if (files.length === 0) { setError("Please upload PDF files."); return; }
     setError(null);
     setScanning(true);
     setScanResult(null);
-    setUploadedFile(file);
+    setUploadedFiles(files);
 
     try {
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", files[0]);
 
       const res = await fetch("/api/user/syllabus-scan", {
         method: "POST",
@@ -54,14 +57,15 @@ export function SyllabusOnboarding({ onDone }: Props) {
   }
 
   async function handleBuildCourse() {
-    if (!scanResult || !uploadedFile) return;
+    if (!scanResult || uploadedFiles.length === 0) return;
     setCreatingCourse(true);
     try {
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
       const form = new FormData();
-      form.append("files", uploadedFile);
+      for (const file of uploadedFiles) form.append("files", file);
       form.append("courseName", scanResult.courseName);
+      form.append("classCode", classCode);
       await fetch("/api/user/syllabus-upload", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -94,7 +98,7 @@ export function SyllabusOnboarding({ onDone }: Props) {
           <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>
             {scanResult
               ? `${scanResult.sections.length} sections · ${scanResult.sections.reduce((s, sec) => s + sec.skills.length, 0)} skills to master`
-              : "Drop your course syllabus and we'll map out everything you need to know."}
+              : "Drop your syllabus and lecture notes — the more you give us, the better the skills we build. We'll map out everything you need to know."}
           </p>
         </div>
 
@@ -107,8 +111,8 @@ export function SyllabusOnboarding({ onDone }: Props) {
               onDragLeave={() => setDragging(false)}
               onDrop={e => {
                 e.preventDefault(); setDragging(false);
-                const file = e.dataTransfer.files[0];
-                if (file) handleFile(file);
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length > 0) handleFiles(files);
               }}
               style={{
                 border: `1.5px dashed ${dragging ? "#4ade80" : "rgba(255,255,255,0.12)"}`,
@@ -118,8 +122,8 @@ export function SyllabusOnboarding({ onDone }: Props) {
                 transition: "border-color 0.15s, background 0.15s",
               }}
             >
-              <input ref={inputRef} type="file" accept=".pdf" style={{ display: "none" }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+              <input ref={inputRef} type="file" accept=".pdf" multiple style={{ display: "none" }}
+                onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length > 0) handleFiles(files); }} />
               {scanning ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
                   <Loader2 style={{ width: 36, height: 36, color: "#4ade80" }} className="animate-spin" />
@@ -132,8 +136,8 @@ export function SyllabusOnboarding({ onDone }: Props) {
                     <Upload style={{ width: 24, height: 24, color: "#4ade80" }} />
                   </div>
                   <div>
-                    <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Drop your syllabus here</p>
-                    <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>or click to browse · PDF only</p>
+                    <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Drop your syllabus and notes here</p>
+                    <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>or click to browse · PDF only · multiple files ok</p>
                   </div>
                 </div>
               )}
@@ -157,6 +161,12 @@ export function SyllabusOnboarding({ onDone }: Props) {
         {/* Scan results */}
         {scanResult && (
           <>
+            {uploadedFiles.length > 1 && (
+              <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: "#111", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
+                Scanned {uploadedFiles[0].name} · {uploadedFiles.length - 1} more file{uploadedFiles.length > 2 ? "s" : ""} will also be used when building your course
+              </div>
+            )}
+
             {scanResult.sections.map((section, i) => {
               const open = openSections.has(i);
               return (
@@ -197,7 +207,26 @@ export function SyllabusOnboarding({ onDone }: Props) {
               );
             })}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+            <div style={{ marginTop: 20 }}>
+              <label style={{ display: "block", color: "rgba(255,255,255,0.35)", fontSize: 11, fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+                Which class is this?
+              </label>
+              <select
+                value={classCode}
+                onChange={e => setClassCode(e.target.value)}
+                style={{
+                  width: "100%", background: "#111", color: "white", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 10, padding: "11px 12px", fontSize: 14, outline: "none",
+                }}
+              >
+                {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <p style={{ marginTop: 6, color: "rgba(255,255,255,0.25)", fontSize: 12 }}>
+                This adds you to {classCode}'s weekly skill sheet emails too, and your uploads help build better skills for everyone in the class.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
               <button
                 onClick={handleBuildCourse}
                 disabled={creatingCourse}
@@ -221,8 +250,8 @@ export function SyllabusOnboarding({ onDone }: Props) {
               </button>
             </div>
 
-            <button onClick={() => { setScanResult(null); setError(null); }} style={{ marginTop: 12, background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer", padding: 0 }}>
-              ← Upload a different syllabus
+            <button onClick={() => { setScanResult(null); setError(null); setUploadedFiles([]); }} style={{ marginTop: 12, background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer", padding: 0 }}>
+              ← Upload different files
             </button>
           </>
         )}
