@@ -17,6 +17,7 @@ import { extractCourseStructure, generateSkillContent, chatRefineContent, genera
 import { searchYouTubeVideos } from "./youtube";
 import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
+import { CLASSES, matchClassCode, normalizeClassCode } from "@shared/classes";
 
 // esbuild empties `import.meta` in CJS builds, so fileURLToPath(import.meta.url)
 // throws there — fall back to it only when native __filename isn't already in
@@ -752,6 +753,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         extracted_at timestamptz NOT NULL DEFAULT now(),
         topics jsonb NOT NULL
       );
+
+      ALTER TABLE courses ADD COLUMN IF NOT EXISTS class_code text;
+
+      CREATE TABLE IF NOT EXISTS public.class_documents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        class_code text NOT NULL,
+        filename text NOT NULL,
+        pathname text NOT NULL UNIQUE,
+        url text NOT NULL,
+        extracted_text text NOT NULL,
+        uploaded_by text NOT NULL,
+        uploaded_at timestamptz NOT NULL DEFAULT now()
+      );
     `);
     await migPool.end();
   } catch (e) { console.warn("Profile column migration skipped:", e); }
@@ -986,27 +1000,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/user/syllabus-upload", requireAuth, uploadDocs.array("files", 5), async (req, res) => {
     try {
       const user = req.user as User;
-      const { courseName } = req.body;
+      const { courseName, classCode: classCodeInput } = req.body;
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
 
-      const texts: string[] = [];
-      const imageBase64s: string[] = [];
-      for (const file of files) {
-        const buffer = fs.readFileSync(file.path);
-        if (/\.pdf$/i.test(file.originalname)) {
-          const pdfParse = (await import("pdf-parse")).default;
-          const pdfData = await pdfParse(buffer);
-          texts.push(pdfData.text);
-        } else {
-          imageBase64s.push(buffer.toString("base64"));
-        }
-      }
+      const pdfFiles = files.filter(f => /\.pdf$/i.test(f.originalname));
+      const imageFiles = files.filter(f => !/\.pdf$/i.test(f.originalname));
+      const imageBase64s = imageFiles.map(f => fs.readFileSync(f.path).toString("base64"));
+      const parsedPdfs = pdfFiles.length > 0 ? await extractPdfTexts(pdfFiles) : [];
+      const texts = parsedPdfs.map(p => p.text);
+
+      const explicitClassCode = typeof classCodeInput === "string" && (CLASSES as readonly string[]).includes(classCodeInput)
+        ? classCodeInput
+        : null;
 
       const structure = await extractCourseStructure(texts, imageBase64s);
       if (courseName) structure.courseName = courseName;
+      const resolvedClassCode = explicitClassCode ?? matchClassCode(structure.courseName);
 
-      // Create course + tools + content (same as admin flow)
+      // Contribute the uploaded PDFs to the class's shared document box (so
+      // future skill generation for this class — by this student or any
+      // other — can draw on it), reusing the already-parsed text.
+      if (resolvedClassCode && parsedPdfs.length > 0) {
+        await saveParsedClassDocuments(resolvedClassCode, parsedPdfs, user.email);
+      }
+      for (const file of pdfFiles) { try { fs.unlinkSync(file.path); } catch {} }
+      for (const file of imageFiles) { try { fs.unlinkSync(file.path); } catch {} }
+
+      // Ground each skill's lesson content in whatever source material is
+      // available for this class — the whole shared box if we resolved one,
+      // else just what this student uploaded right now.
+      const groundingText = resolvedClassCode
+        ? await getClassDocumentsText(resolvedClassCode)
+        : texts.join("\n\n").slice(0, 30000);
+
+      // Create course + tools + content (same shape as the admin flow, but
+      // content is generated per-skill here instead of a separate step,
+      // since this is a single-request onboarding flow, not a wizard).
       const course = await storage.createCourse({
         name: structure.courseName,
         description: structure.courseDescription,
@@ -1014,9 +1044,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         color: "#22C55E",
         orderIndex: 100,
         locked: false,
+        classCode: resolvedClassCode ?? undefined,
       });
-      for (let ti = 0; ti < structure.topics.length; ti++) {
-        const topic = structure.topics[ti];
+      await Promise.all(structure.topics.map(async (topic, ti) => {
         const tool = await storage.createTool({
           courseId: course.id,
           name: topic.name,
@@ -1026,22 +1056,49 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           orderIndex: ti,
           xpReward: 100,
         });
-        for (let si = 0; si < topic.skills.length; si++) {
-          const skill = topic.skills[si];
+        const skillTitles = topic.skills.map(s => s.title);
+        await Promise.all(topic.skills.map(async (skill, si) => {
+          const content = await generateSkillContent(
+            structure.courseName,
+            topic.name,
+            skill.title,
+            skillTitles.filter(t => t !== skill.title),
+            groundingText || undefined,
+          );
           await storage.createToolContent({
             toolId: tool.id,
             type: "text",
             title: skill.title,
-            content: skill.content,
+            content,
             orderIndex: si,
           } as any);
-        }
+        }));
+      }));
+
+      // Building a course from a class's syllabus and being signed up for
+      // that class's weekly email skill sheets are the same "I'm in this
+      // class" fact — don't make the student say it twice.
+      if (resolvedClassCode) {
+        try {
+          const db = new pg.Client(process.env.POSTGRES_URL!);
+          await db.connect();
+          const { rows: existingRows } = await db.query<{ classes: string[] }>(
+            "SELECT classes FROM public.signups WHERE email = $1",
+            [user.email]
+          );
+          const existingClasses = existingRows[0]?.classes ?? [];
+          const alreadyEnrolled = existingClasses.some(c => normalizeClassCode(c) === normalizeClassCode(resolvedClassCode!));
+          const mergedClasses = alreadyEnrolled ? existingClasses : [...existingClasses, resolvedClassCode];
+          await db.query(
+            `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
+             ON CONFLICT (email) DO UPDATE SET classes = $2`,
+            [user.email, mergedClasses]
+          );
+          await db.end();
+        } catch (e) { console.error("[syllabus-upload] signups enroll failed:", e); }
       }
 
-      // Cleanup temp files
-      for (const file of files) { try { fs.unlinkSync(file.path); } catch {} }
-
-      res.json({ success: true, courseId: course.id, courseName: structure.courseName });
+      res.json({ success: true, courseId: course.id, courseName: structure.courseName, classCode: resolvedClassCode });
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ message: err.message || "Failed to process syllabus" });
@@ -1422,12 +1479,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Invalid course structure" });
       }
 
+      const classCode = typeof structure.classCode === "string" && (CLASSES as readonly string[]).includes(structure.classCode)
+        ? structure.classCode
+        : null;
+
       const course = await storage.createCourse({
         name: structure.courseName,
         description: structure.courseDescription || "",
         icon: structure.courseIcon || "📚",
         color: structure.courseColor || "#22C55E",
         orderIndex: 0,
+        classCode: classCode ?? undefined,
       });
 
       const items = structure.tools || structure.topics || [];
@@ -1469,6 +1531,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const outline = req.body;
       if (!outline?.courseName || !Array.isArray(outline?.topics)) return res.status(400).json({ message: "Invalid outline" });
 
+      const classCode = typeof outline.classCode === "string" && (CLASSES as readonly string[]).includes(outline.classCode)
+        ? outline.classCode
+        : null;
+      const groundingText = classCode ? await getClassDocumentsText(classCode) : undefined;
+
       const result = {
         ...outline,
         topics: await Promise.all(
@@ -1477,7 +1544,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const skillsWithContent = await Promise.all(
               (topic.skills || []).map(async (skill: any) => {
                 try {
-                  let content = await generateSkillContent(outline.courseName, topic.name, skill.title, skillTitles.filter((t: string) => t !== skill.title));
+                  let content = await generateSkillContent(outline.courseName, topic.name, skill.title, skillTitles.filter((t: string) => t !== skill.title), groundingText);
                   const videos = await searchYouTubeVideos(`${skill.title} ${topic.name}`, 2);
                   if (videos.length > 0) {
                     content += "\n\n---\n\n**Tutorial Videos:**\n\n";
@@ -1551,6 +1618,142 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     return res.json({ timeline: rows[0] ?? null });
   });
+
+  // ─── Class document box — syllabi/lecture notes uploaded for a class (by
+  // admin or by any signed-in student in that class), used to ground AI skill
+  // generation for that class instead of generating from titles alone ───────
+
+  type ClassDocumentRow = {
+    id: string;
+    class_code: string;
+    filename: string;
+    url: string;
+    extracted_text: string;
+    uploaded_by: string;
+    uploaded_at: string;
+  };
+
+  type ParsedPdf = { file: Express.Multer.File; buffer: Buffer; text: string };
+
+  async function extractPdfTexts(files: Express.Multer.File[]): Promise<ParsedPdf[]> {
+    const pdfParse = (await import("pdf-parse")).default;
+    const results: ParsedPdf[] = [];
+    for (const file of files) {
+      const buffer = fs.readFileSync(file.path);
+      const pdfData = await pdfParse(buffer);
+      results.push({ file, buffer, text: pdfData.text });
+    }
+    return results;
+  }
+
+  // Persists already-parsed PDFs into a class's shared document box. Takes
+  // pre-parsed input (rather than raw files) so callers that also need the
+  // extracted text for something else (e.g. building a course from the same
+  // upload) don't parse each PDF twice.
+  async function saveParsedClassDocuments(classCode: string, parsed: ParsedPdf[], uploadedBy: string): Promise<ClassDocumentRow[]> {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const created: ClassDocumentRow[] = [];
+    for (const { file, buffer, text } of parsed) {
+      const id = randomUUID();
+      const sanitizedFilename = file.originalname.replace(/[^\w.\-]/g, "_");
+      const blob = await put(`class-documents/${classCode}/${id}/${sanitizedFilename}`, buffer, {
+        access: "private",
+        contentType: "application/pdf",
+      });
+      const { rows } = await db.query<ClassDocumentRow>(
+        `INSERT INTO public.class_documents (id, class_code, filename, pathname, url, extracted_text, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, class_code, filename, url, extracted_text, uploaded_by, uploaded_at`,
+        [id, classCode, file.originalname, blob.pathname, blob.url, text, uploadedBy]
+      );
+      created.push(rows[0]);
+    }
+    await db.end();
+    return created;
+  }
+
+  // Combined, size-capped text from every document uploaded for a class — the
+  // grounding context handed to generateSkillContent. Capped rather than
+  // unbounded since it's concatenated into every skill's content-generation
+  // prompt; most recently uploaded material is kept first as the more likely
+  // relevant/current one.
+  async function getClassDocumentsText(classCode: string): Promise<string> {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<{ filename: string; extracted_text: string }>(
+      "SELECT filename, extracted_text FROM public.class_documents WHERE class_code = $1 ORDER BY uploaded_at DESC",
+      [classCode]
+    );
+    await db.end();
+    const combined = rows.map(r => `--- ${r.filename} ---\n${r.extracted_text}`).join("\n\n");
+    return combined.slice(0, 30000);
+  }
+
+  app.post(
+    "/api/admin/classes/:classCode/documents",
+    requireAdmin,
+    uploadDocs.array("files", 10),
+    async (req, res) => {
+      try {
+        const files = req.files as Express.Multer.File[];
+        if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
+        const parsed = await extractPdfTexts(files);
+        const created = await saveParsedClassDocuments(req.params.classCode as string, parsed, "admin");
+        for (const file of files) { try { fs.unlinkSync(file.path); } catch {} }
+        res.json({ documents: created.map(({ extracted_text, ...rest }) => rest) });
+      } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ message: err.message || "Failed to upload documents" });
+      }
+    },
+  );
+
+  app.get("/api/admin/classes/:classCode/documents", requireAdmin, async (req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<Omit<ClassDocumentRow, "extracted_text">>(
+      "SELECT id, class_code, filename, url, uploaded_by, uploaded_at FROM public.class_documents WHERE class_code = $1 ORDER BY uploaded_at DESC",
+      [req.params.classCode]
+    );
+    await db.end();
+    res.json({ documents: rows });
+  });
+
+  app.delete("/api/admin/classes/:classCode/documents/:id", requireAdmin, async (req, res) => {
+    const db = new pg.Client(process.env.POSTGRES_URL!);
+    await db.connect();
+    const { rows } = await db.query<{ url: string }>(
+      "SELECT url FROM public.class_documents WHERE id = $1 AND class_code = $2",
+      [req.params.id, req.params.classCode]
+    );
+    if (rows[0]) await del(rows[0].url);
+    await db.query("DELETE FROM public.class_documents WHERE id = $1", [req.params.id]);
+    await db.end();
+    res.json({ ok: true });
+  });
+
+  // Student-facing: any signed-in user can contribute documents to their
+  // class's shared box, same as admin — this is what a student uploading
+  // "for the class" (as opposed to their own private course) hits.
+  app.post(
+    "/api/user/classes/:classCode/documents",
+    requireAuth,
+    uploadDocs.array("files", 10),
+    async (req, res) => {
+      try {
+        const user = req.user as User;
+        const files = req.files as Express.Multer.File[];
+        if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
+        const parsed = await extractPdfTexts(files);
+        const created = await saveParsedClassDocuments(req.params.classCode as string, parsed, user.email);
+        for (const file of files) { try { fs.unlinkSync(file.path); } catch {} }
+        res.json({ documents: created.map(({ extracted_text, ...rest }) => rest) });
+      } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ message: err.message || "Failed to upload documents" });
+      }
+    },
+  );
 
   app.post("/api/admin/ai-chat", requireAdmin, async (req, res) => {
     try {

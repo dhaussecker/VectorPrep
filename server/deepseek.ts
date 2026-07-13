@@ -95,6 +95,7 @@ export async function generateSkillContent(
   topicName: string,
   skillTitle: string,
   siblingSkills: string[],
+  groundingText?: string,
 ): Promise<string> {
   const systemPrompt = `You are an expert educator creating detailed lesson content. Write thorough educational content in Markdown with LaTeX math (use $...$ for inline, $$...$$ for display).
 
@@ -105,14 +106,20 @@ Include:
 - Common mistakes and tips
 - Brief summary
 
-Be thorough — this is the student's primary learning material. Use proper markdown headings, bullet points, and formatting.`;
+Be thorough — this is the student's primary learning material. Use proper markdown headings, bullet points, and formatting.${
+    groundingText
+      ? " Source material from the actual class (syllabus/lecture notes) is provided below — match its notation, emphasis, and any specific examples or terminology the instructor uses, rather than writing generic content. If the source material doesn't cover this skill in detail, fall back to standard course-level treatment of the topic."
+      : ""
+  }`;
 
   const userMessage = `Create detailed lesson content for:
 Course: ${courseName}
 Topic: ${topicName}
 Skill: ${skillTitle}
 
-Other skills in this topic (for context, don't repeat their content): ${siblingSkills.join(", ")}`;
+Other skills in this topic (for context, don't repeat their content): ${siblingSkills.join(", ")}${
+    groundingText ? `\n\nSource material from this class:\n${groundingText}` : ""
+  }`;
 
   return callDeepSeek(systemPrompt, userMessage, 4096, 0.4);
 }

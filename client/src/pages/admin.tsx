@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
+import { CLASSES } from "@shared/classes";
 import { RichContent } from "@/components/rich-content";
 import { DiagramRenderer, type DiagramSpec } from "@/components/diagram-renderer";
 import { useAuth } from "@/hooks/use-auth";
@@ -287,6 +288,7 @@ export default function AdminPage() {
     <div className="flex-1 overflow-auto">
       <div className="px-6 md:px-8 py-6 space-y-6">
         <WeeklyEmailsManager />
+        <ClassDocumentBox />
         <RenderSkillSheetTool />
         <AISyllabusImport />
         <AllSignupsPanel />
@@ -1790,6 +1792,7 @@ function InlineEdit({ value, onChange, className, placeholder }: {
 function AISyllabusImport() {
   const [mode, setMode] = useState<"course" | "timeline">("course");
   const { toast } = useToast();
+  const [classCode, setClassCode] = useState<string>("none");
   const [files, setFiles] = useState<File[]>([]);
   const [outline, setOutline] = useState<CourseOutline | null>(null);
   const [fullPreview, setFullPreview] = useState<CourseOutline | null>(null);
@@ -1965,6 +1968,22 @@ function AISyllabusImport() {
           <p className="text-sm text-muted-foreground">
             Upload syllabi, lecture notes, or practice exams (PDF or images). DeepSeek AI will analyze the documents and extract a course structure you can edit before generating content.
           </p>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground shrink-0">Class (optional)</Label>
+            <Select value={classCode} onValueChange={setClassCode}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              {classCode !== "none" ? `Content generation will draw on ${classCode}'s document box` : "Pick a class to ground content in its uploaded syllabi/notes"}
+            </span>
+          </div>
 
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={analyzeMutation.isPending}>
@@ -2143,7 +2162,7 @@ function AISyllabusImport() {
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setOutline(null)}>Cancel</Button>
             <Button
-              onClick={() => outline && generateMutation.mutate(outline)}
+              onClick={() => outline && generateMutation.mutate(classCode !== "none" ? { ...outline, classCode } as any : outline)}
               disabled={generateMutation.isPending || !outline?.topics.length}
             >
               {generateMutation.isPending ? (
@@ -2287,7 +2306,7 @@ function AISyllabusImport() {
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => { setFullPreview(null); }}>Back to Outline</Button>
             <Button
-              onClick={() => fullPreview && createMutation.mutate(fullPreview)}
+              onClick={() => fullPreview && createMutation.mutate(classCode !== "none" ? { ...fullPreview, classCode } as any : fullPreview)}
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? (
@@ -2319,7 +2338,7 @@ type SyllabusTopicRow = {
 
 function SyllabusTimelineExtractor() {
   const { toast } = useToast();
-  const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+  const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
   const [file, setFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2541,8 +2560,6 @@ function AIChatPanel({ currentContent, onContentUpdate, context }: {
 
 // ─── Weekly Emails Manager ────────────────────────────────────────────────────
 
-const CLASSES = ["MATH110", "GE122", "GE152", "GE172", "CMPT142", "MATH133"];
-
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: session } = await supabase.auth.getSession();
   const token = session.session?.access_token;
@@ -2562,7 +2579,7 @@ type DocRecipient = { email: string; excluded: boolean };
 
 function WeeklyEmailsManager() {
   const { toast } = useToast();
-  const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+  const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
   const [file, setFile] = useState<File | null>(null);
   const [skillsFile, setSkillsFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -2934,6 +2951,142 @@ function RenderSkillSheetTool() {
             Generate PDF
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Class Document Box — syllabi/lecture notes uploaded for a class, used to
+// ground AI skill generation for that class instead of generating from
+// titles alone. Admin uploads here; students can also contribute from their
+// own syllabus upload flow (dashboard onboarding). ─────────────────────────
+
+type ClassDocument = {
+  id: string;
+  filename: string;
+  url: string;
+  uploadedBy: string;
+  uploadedAt: string;
+};
+
+function ClassDocumentBox() {
+  const { toast } = useToast();
+  const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [docs, setDocs] = useState<ClassDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function loadDocs(classCode: string) {
+    setLoading(true);
+    const res = await fetch(`/api/admin/classes/${classCode}/documents`, { headers: await authHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      setDocs(data.documents.map((d: any) => ({
+        id: d.id, filename: d.filename, url: d.url, uploadedBy: d.uploaded_by, uploadedAt: d.uploaded_at,
+      })));
+    }
+    setLoading(false);
+  }
+
+  useState(() => { loadDocs(selectedClass); });
+
+  function selectClass(c: string) {
+    setSelectedClass(c);
+    loadDocs(c);
+  }
+
+  async function handleUpload() {
+    if (files.length === 0) return;
+    setUploading(true);
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`/api/admin/classes/${selectedClass}/documents`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: form,
+    });
+    setUploading(false);
+    if (res.ok) {
+      toast({ title: `Uploaded ${files.length} document${files.length === 1 ? "" : "s"} to ${selectedClass}` });
+      setFiles([]);
+      if (fileRef.current) fileRef.current.value = "";
+      loadDocs(selectedClass);
+    } else {
+      const data = await res.json().catch(() => null);
+      toast({ title: "Upload failed", description: data?.message, variant: "destructive" });
+    }
+  }
+
+  async function handleDelete(docId: string) {
+    const res = await fetch(`/api/admin/classes/${selectedClass}/documents/${docId}`, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    });
+    if (res.ok) setDocs(prev => prev.filter(d => d.id !== docId));
+  }
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <FolderOpen className="w-4 h-4" />
+          Class Document Box
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Upload syllabi and lecture notes for a class. The AI that writes skill content for this class — both in
+          the admin course builder and when a student uploads their own syllabus — draws on everything here instead
+          of generating from titles alone.
+        </p>
+
+        <div className="flex gap-2">
+          <Select value={selectedClass} onValueChange={selectClass}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            multiple
+            onChange={e => setFiles(Array.from(e.target.files ?? []))}
+            className="flex-1"
+          />
+          <Button onClick={handleUpload} disabled={files.length === 0 || uploading}>
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          </Button>
+        </div>
+        {files.length > 0 && (
+          <p className="text-xs text-muted-foreground">{files.length} file{files.length === 1 ? "" : "s"} selected</p>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No documents yet for {selectedClass}</p>
+        ) : (
+          <div className="space-y-2">
+            {docs.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm font-mono truncate">{doc.filename}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">{doc.uploadedBy === "admin" ? "admin" : "student"}</Badge>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)} className="shrink-0">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

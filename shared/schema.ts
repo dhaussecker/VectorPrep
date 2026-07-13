@@ -40,6 +40,11 @@ export const courses = pgTable("courses", {
   color: text("color").notNull().default("#22C55E"),
   orderIndex: integer("order_index").notNull().default(0),
   locked: boolean("locked").notNull().default(false),
+  // Canonical class this course belongs to (e.g. "MATH110") — links a course
+  // built from a student's own uploaded syllabus back to the same class
+  // identity used by weekly-email signups and syllabus timelines. Nullable:
+  // AI-inferred course names don't always map onto a known class.
+  classCode: text("class_code"),
 });
 
 // tools (was: topics)
