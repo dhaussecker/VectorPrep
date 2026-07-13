@@ -18,13 +18,16 @@ import { searchYouTubeVideos } from "./youtube";
 import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// esbuild empties `import.meta` in CJS builds, so fileURLToPath(import.meta.url)
+// throws there — fall back to it only when native __filename isn't already in
+// scope (real ESM, e.g. dev mode via tsx or the ESM Vercel function build).
+const moduleFilename: string = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const moduleDirname = path.dirname(moduleFilename);
 
 const uploadsDir = path.resolve(
   process.env.NODE_ENV === "production"
     ? "/tmp/uploads"
-    : path.resolve(__dirname, "..", "client", "public", "uploads"),
+    : path.resolve(moduleDirname, "..", "client", "public", "uploads"),
 );
 try {
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });

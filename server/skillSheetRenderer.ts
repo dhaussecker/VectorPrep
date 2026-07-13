@@ -3,7 +3,10 @@ import path from "path";
 import { createRequire } from "module";
 import katex from "katex";
 
-const require = createRequire(import.meta.url);
+// esbuild empties `import.meta` in CJS builds, so createRequire(import.meta.url)
+// throws there — fall back to it only when a native `require` isn't already in
+// scope (real ESM, e.g. dev mode via tsx or the ESM Vercel function build).
+const nodeRequire: NodeRequire = typeof require !== "undefined" ? require : createRequire(import.meta.url);
 
 // ─── Brand tokens (ported from build.js) ───────────────────────────────────
 const BRAND = {
@@ -30,7 +33,7 @@ const BRAND = {
 let cachedKatexCss: string | null = null;
 function getInlinedKatexCss(): string {
   if (cachedKatexCss) return cachedKatexCss;
-  const cssPath = require.resolve("katex/dist/katex.min.css");
+  const cssPath = nodeRequire.resolve("katex/dist/katex.min.css");
   const fontsDir = path.join(path.dirname(cssPath), "fonts");
   let css = fs.readFileSync(cssPath, "utf-8");
   css = css.replace(/url\(fonts\/([^)]+\.(woff2|woff|ttf))\)/g, (_match, filename, ext) => {
