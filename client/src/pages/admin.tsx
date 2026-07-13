@@ -288,6 +288,7 @@ export default function AdminPage() {
       <div className="px-6 md:px-8 py-6 space-y-6">
         <WeeklyEmailsManager />
         <RenderSkillSheetTool />
+        <AISyllabusImport />
         <AllSignupsPanel />
       </div>
     </div>
