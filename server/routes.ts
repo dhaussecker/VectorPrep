@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { seedDatabase } from "./seed";
 import { supabaseAdmin } from "./supabase";
-import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills, extractSyllabusTimeline } from "./deepseek";
+import { extractCourseStructure, generateSkillContent, chatRefineContent, generateStudyPlan, generateProgramCourses, extractAndMatchSyllabus, scanSyllabusSkills, extractSyllabusTimeline, restructureSkillsForSheet } from "./deepseek";
 import { searchYouTubeVideos } from "./youtube";
 import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
@@ -1754,6 +1754,132 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
     },
   );
+
+  // ─── Auto-assemble weekly skill sheets from the AI-built course content,
+  // scheduled against the class's syllabus timeline — the piece that connects
+  // the course builder + document box + timeline into one pipeline instead of
+  // requiring an admin to hand-author each week's skills .js file ───────────
+
+  function normalizeTopicName(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  // Course topics (built independently via AI course import) and timeline
+  // topics (extracted from the syllabus's schedule section) come from two
+  // separate AI extractions and aren't guaranteed to share exact names —
+  // match by normalized equality first, then loose substring containment.
+  function matchTimelineTopicToTool<T extends { name: string }>(timelineTitle: string, tools: T[]): T | null {
+    const normalized = normalizeTopicName(timelineTitle);
+    for (const tool of tools) {
+      if (normalizeTopicName(tool.name) === normalized) return tool;
+    }
+    for (const tool of tools) {
+      const toolNorm = normalizeTopicName(tool.name);
+      if (normalized.includes(toolNorm) || toolNorm.includes(normalized)) return tool;
+    }
+    return null;
+  }
+
+  app.post("/api/admin/classes/:classCode/auto-schedule-sheets", requireAdmin, async (req, res) => {
+    try {
+      const classCode = req.params.classCode;
+      if (!(CLASSES as readonly string[]).includes(classCode)) return res.status(400).json({ message: "Unknown class code" });
+
+      const allCourses = await storage.getCourses();
+      const classCourses = allCourses.filter(c => c.classCode === classCode);
+      if (classCourses.length === 0) {
+        return res.status(400).json({ message: `No AI-built course found for ${classCode}. Build one first via AI Course Import.` });
+      }
+      // courses has no createdAt column — the one with the most topics is the
+      // best proxy for "the real one" when more than one exists for a class.
+      const toolsByCourse = await Promise.all(classCourses.map(c => storage.getToolsByCourse(c.id)));
+      let bestIdx = 0;
+      for (let i = 1; i < toolsByCourse.length; i++) {
+        if (toolsByCourse[i].length > toolsByCourse[bestIdx].length) bestIdx = i;
+      }
+      const course = classCourses[bestIdx];
+      const tools = toolsByCourse[bestIdx];
+
+      const timelineDb = new pg.Client(process.env.POSTGRES_URL!);
+      await timelineDb.connect();
+      const { rows: timelineRows } = await timelineDb.query<{ topics: unknown }>(
+        "SELECT topics FROM public.syllabus_timelines WHERE class_name = $1 ORDER BY extracted_at DESC LIMIT 1",
+        [classCode]
+      );
+      await timelineDb.end();
+      if (!timelineRows[0]) {
+        return res.status(400).json({ message: `No syllabus timeline found for ${classCode}. Extract one first via "Extract Weekly Sheet Timeline".` });
+      }
+      const timelineTopics = timelineRows[0].topics as { number: number; title: string; startDate: string | null }[];
+
+      const results: { topic: string; status: string; scheduledFor?: string }[] = [];
+
+      for (const timelineTopic of timelineTopics) {
+        if (!timelineTopic.startDate) {
+          results.push({ topic: timelineTopic.title, status: "skipped — no date in timeline" });
+          continue;
+        }
+        const tool = matchTimelineTopicToTool(timelineTopic.title, tools);
+        if (!tool) {
+          results.push({ topic: timelineTopic.title, status: "skipped — no matching course topic" });
+          continue;
+        }
+        const content = await storage.getToolContent(tool.id);
+        if (content.length === 0) {
+          results.push({ topic: timelineTopic.title, status: "skipped — matched topic has no generated content" });
+          continue;
+        }
+
+        try {
+          const cards = await restructureSkillsForSheet(
+            course.name,
+            tool.name,
+            content.map(c => ({ title: c.title, content: c.content })),
+          );
+          const skillSheetContent: SkillSheetContent = {
+            COURSE: classCode,
+            SHEET_TITLE: tool.name,
+            SHEET_SUBTITLE: course.name,
+            SKILLS: cards.map((c, i) => ({ ...c, number: c.number || i + 1 })),
+          };
+          const html = buildSkillSheetHtml(skillSheetContent);
+          const pdf = await renderHtmlToPdf(html);
+
+          // Send a couple days ahead of when the class actually reaches this
+          // topic — "right before they're learning it," not on a fixed
+          // weekly cadence unrelated to the syllabus.
+          const topicStart = new Date(`${timelineTopic.startDate}T15:00:00.000Z`);
+          const leadTime = new Date(topicStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+          const scheduledFor = leadTime > new Date() ? leadTime : defaultScheduledFor();
+
+          const id = randomUUID();
+          const filename = `${tool.name.replace(/[^\w.\-]/g, "_")}.pdf`;
+          const blob = await put(`weekly-docs/${id}/${filename}`, pdf, {
+            access: "private",
+            contentType: "application/pdf",
+          });
+
+          const docDb = new pg.Client(process.env.POSTGRES_URL!);
+          await docDb.connect();
+          await docDb.query(
+            `INSERT INTO public.weekly_docs (id, class_name, filename, pathname, url, scheduled_for, skills)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, classCode, filename, blob.pathname, blob.url, scheduledFor, JSON.stringify(cards.map(c => ({ number: c.number, title: c.title })))]
+          );
+          await docDb.end();
+
+          results.push({ topic: timelineTopic.title, status: "scheduled", scheduledFor: scheduledFor.toISOString() });
+        } catch (e: any) {
+          results.push({ topic: timelineTopic.title, status: `failed — ${e.message}` });
+        }
+      }
+
+      res.json({ course: course.name, results });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Failed to auto-schedule sheets" });
+    }
+  });
 
   app.post("/api/admin/ai-chat", requireAdmin, async (req, res) => {
     try {

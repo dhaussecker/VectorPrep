@@ -289,6 +289,7 @@ export default function AdminPage() {
       <div className="px-6 md:px-8 py-6 space-y-6">
         <WeeklyEmailsManager />
         <ClassDocumentBox />
+        <AutoScheduleWeeklySheets />
         <RenderSkillSheetTool />
         <AISyllabusImport />
         <AllSignupsPanel />
@@ -3083,6 +3084,91 @@ function ClassDocumentBox() {
                 <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)} className="shrink-0">
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Auto-schedule weekly sheets — assembles PDFs from the class's AI-built
+// course content and schedules them against its syllabus timeline, so a
+// topic's sheet goes out a couple days before the class actually reaches it
+// instead of an admin hand-authoring and dating each one. Requires both an
+// AI-built course (AI Course Import, tagged to this class) and a saved
+// timeline (Extract Weekly Sheet Timeline) to already exist for the class. ──
+
+type ScheduleResult = { topic: string; status: string; scheduledFor?: string };
+
+function AutoScheduleWeeklySheets() {
+  const { toast } = useToast();
+  const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<ScheduleResult[] | null>(null);
+  const [courseName, setCourseName] = useState<string | null>(null);
+
+  async function handleRun() {
+    setRunning(true);
+    setResults(null);
+    const res = await fetch(`/api/admin/classes/${selectedClass}/auto-schedule-sheets`, {
+      method: "POST",
+      headers: await authHeaders(),
+    });
+    setRunning(false);
+    const data = await res.json().catch(() => null);
+    if (res.ok) {
+      setResults(data.results);
+      setCourseName(data.course);
+      const scheduled = data.results.filter((r: ScheduleResult) => r.status === "scheduled").length;
+      toast({ title: `Scheduled ${scheduled} of ${data.results.length} topic sheets for ${selectedClass}` });
+    } else {
+      toast({ title: "Auto-schedule failed", description: data?.message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          Auto-Schedule Weekly Sheets
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          For each topic in the class's saved syllabus timeline, finds the matching AI-built course topic, compresses
+          its lesson content into a skill-sheet PDF, and schedules it a couple days before that topic's start date.
+          Needs both an AI-built course (tagged to this class) and a saved timeline to already exist.
+        </p>
+
+        <div className="flex gap-2">
+          <Select value={selectedClass} onValueChange={c => { setSelectedClass(c); setResults(null); }}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={handleRun} disabled={running}>
+            {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            Generate & Schedule
+          </Button>
+        </div>
+
+        {results && (
+          <div className="space-y-2">
+            {courseName && <p className="text-xs text-muted-foreground">From course: {courseName}</p>}
+            {results.map((r, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                <span className="truncate">{r.topic}</span>
+                <Badge variant={r.status === "scheduled" ? "default" : "outline"} className="shrink-0 text-xs">
+                  {r.status === "scheduled" && r.scheduledFor
+                    ? `scheduled ${format(new Date(r.scheduledFor), "MMM d")}`
+                    : r.status}
+                </Badge>
               </div>
             ))}
           </div>

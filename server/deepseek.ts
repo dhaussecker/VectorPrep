@@ -124,6 +124,65 @@ Other skills in this topic (for context, don't repeat their content): ${siblingS
   return callDeepSeek(systemPrompt, userMessage, 4096, 0.4);
 }
 
+export interface SheetSkillCard {
+  number: number;
+  title: string;
+  formula?: string;
+  steps: string[];
+  example: { heading: string; mathLines: string[]; answer?: string | null };
+}
+
+// Compresses full lesson content (written for in-app reading, one skill at a
+// time) into the terse skill-sheet card format used by the weekly PDF
+// pipeline — a handful of steps and one worked example per card, not the
+// full lesson. This is a distinct transform from generateSkillContent, not a
+// truncation of it: the sheet is meant to be a one-page-per-topic reference,
+// not the lesson itself.
+export async function restructureSkillsForSheet(
+  courseName: string,
+  topicName: string,
+  skills: { title: string; content: string }[],
+): Promise<SheetSkillCard[]> {
+  const systemPrompt = `You are compressing full lesson content into a terse skill-sheet card format — a one-page-per-topic study reference, not the lesson itself.
+
+Return ONLY valid JSON (no markdown fences) as an array, one entry per skill given, in the same order:
+[
+  {
+    "number": 1,
+    "title": "string - skill title, as given",
+    "formula": "string or omit - the single most important LaTeX formula for this skill, if there is one (no $ delimiters, raw LaTeX)",
+    "steps": ["string - short step, no LaTeX delimiters needed inline but LaTeX syntax is fine", "..."],
+    "example": {
+      "heading": "string - e.g. 'Example' or a short problem description",
+      "mathLines": ["string - one line of raw LaTeX per array entry, building up the worked example"],
+      "answer": "string or null - final answer as raw LaTeX, if applicable"
+    }
+  }
+]
+
+Rules:
+- 3-5 steps per skill, each under 12 words — this is a quick-reference card, not a tutorial
+- The example should be short — 2-4 math lines max, drawn from or representative of the source content
+- Omit "formula" entirely if the skill doesn't center on one specific formula
+- LaTeX strings should NOT include $ or $$ delimiters — just the raw LaTeX`;
+
+  const userMessage = `Course: ${courseName}
+Topic: ${topicName}
+
+Skills (full lesson content to compress):
+${skills.map((s, i) => `--- Skill ${i + 1}: ${s.title} ---\n${s.content}`).join("\n\n")}`;
+
+  const raw = await callDeepSeek(systemPrompt, userMessage, 4096, 0.2);
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (!Array.isArray(parsed)) throw new Error("not array");
+    return parsed as SheetSkillCard[];
+  } catch (err) {
+    throw new Error(`Failed to parse skill-sheet restructuring: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
 export async function chatRefineContent(
   currentContent: string,
   userMessage: string,
