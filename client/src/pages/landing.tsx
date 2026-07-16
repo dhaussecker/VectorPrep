@@ -8,6 +8,7 @@ const T = "#111111";   // text
 const M = "#6B7280";   // muted
 const C = "#F9FAFB";   // card bg
 const BD = "#E5E7EB";  // border
+const MONO = "ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace"; // data/eyebrow face
 
 // ─── Scroll-reveal wrapper ────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ function Bar() {
   return (
     <div style={{ background: G, textAlign: "center", padding: "11px 24px" }}>
       <p style={{ color: "white", fontWeight: 600, fontSize: 14, margin: 0 }}>
-        I'm Quisly — your free academic sidekick for skill sheets, tutors, and exam prep. →
+        I'm Quisly, your free academic sidekick for skill sheets, tutors, and exam prep. →
       </p>
     </div>
   );
@@ -68,12 +69,54 @@ function Bar() {
 
 // ─── iPhone mockup with live form ─────────────────────────────────────────────
 
-function Phone({ email, setEmail, classes, setClasses, onSubmit, submitted, loading }: {
+const TOPIC_OPTIONS = ["Calculus", "Mechanics", "Programming", "Circuits"];
+const GOAL_OPTIONS = ["Get ahead", "Catch up and pass", "Move faster, less time"];
+
+type ClassRow = { name: string; fileName: string };
+
+function Chip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: selected ? G : "#2C2C2E",
+        color: selected ? "white" : "rgba(255,255,255,0.65)",
+        border: selected ? "none" : "1px solid rgba(255,255,255,0.15)",
+        borderRadius: 100, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Phone({
+  name, setName, email, setEmail, university, setUniversity,
+  topics, toggleTopic, goals, toggleGoal,
+  classRows, updateClassName, updateClassFile, addClassRow, removeClassRow,
+  onSubmit, submitted, loading, error,
+}: {
+  name: string; setName: (v: string) => void;
   email: string; setEmail: (v: string) => void;
-  classes: string; setClasses: (v: string) => void;
+  university: string; setUniversity: (v: string) => void;
+  topics: string[]; toggleTopic: (t: string) => void;
+  goals: string[]; toggleGoal: (g: string) => void;
+  classRows: ClassRow[];
+  updateClassName: (i: number, v: string) => void;
+  updateClassFile: (i: number, f: File | null) => void;
+  addClassRow: () => void;
+  removeClassRow: (i: number) => void;
   onSubmit: (e: React.FormEvent) => void;
-  submitted: boolean; loading: boolean;
+  submitted: boolean; loading: boolean; error?: boolean;
 }) {
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", background: "#2C2C2E", border: "none", borderRadius: 10,
+    padding: "9px 12px", color: "white", fontSize: 13, outline: "none", marginBottom: 7, boxSizing: "border-box",
+  };
+  const sectionLabel: React.CSSProperties = {
+    color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", margin: "12px 0 7px",
+  };
   return (
     <div style={{
       width: 296,
@@ -91,7 +134,7 @@ function Phone({ email, setEmail, classes, setClasses, onSubmit, submitted, load
       <div style={{ position: "absolute", right: -3, top: 158, width: 3, height: 76, background: "#4a4a4a", borderRadius: "0 2px 2px 0" }} />
 
       {/* Screen */}
-      <div style={{ background: "#000", borderRadius: 42, overflow: "hidden", display: "flex", flexDirection: "column", height: 628 }}>
+      <div style={{ background: "#000", borderRadius: 42, overflow: "hidden", display: "flex", flexDirection: "column", height: 660 }}>
 
         {/* Status bar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px 4px", background: "#000", flexShrink: 0 }}>
@@ -136,46 +179,30 @@ function Phone({ email, setEmail, classes, setClasses, onSubmit, submitted, load
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 10px", display: "flex", flexDirection: "column", gap: 10, background: "#000" }}>
-
-          {/* Quisly: greeting */}
+        <div style={{ flexShrink: 0, padding: "14px 10px", background: "#000" }}>
           <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
             <div style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, backgroundImage: "url('/quisly-mascot.png')", backgroundSize: "210%", backgroundPosition: "50% 12%" }} />
-            <div style={{ background: "#3A3A3C", color: "white", borderRadius: "16px 16px 16px 4px", padding: "9px 13px", maxWidth: "76%", fontSize: 13, lineHeight: 1.45 }}>
-              Hey! 👋<br />Tell me what classes you're taking and I'll help you stay ahead.
-            </div>
-          </div>
-
-          {/* Student: classes */}
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <div style={{ background: "#0A84FF", color: "white", borderRadius: "16px 16px 4px 16px", padding: "9px 13px", fontSize: 13, lineHeight: 1.7 }}>
-              MATH 110<br />GE 122<br />GE 152<br />GE 172<br />CMPT 142<br />MATH 133
-            </div>
-          </div>
-
-          {/* Quisly: response */}
-          <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, backgroundImage: "url('/quisly-mascot.png')", backgroundSize: "210%", backgroundPosition: "50% 12%" }} />
-            <div style={{ background: "#3A3A3C", color: "white", borderRadius: "16px 16px 16px 4px", padding: "9px 13px", maxWidth: "80%", fontSize: 13, lineHeight: 1.55 }}>
-              <span style={{ fontWeight: 700 }}>Perfect.</span><br /><br />
-              Every week I'll email you:<br /><br />
-              ✅ the most important concepts<br />
-              ✅ practice topics<br />
-              ✅ common mistakes<br /><br />
-              I'll also connect you with tutors and invite you to review sessions before exams. 🎯
+            <div style={{ background: "#3A3A3C", color: "white", borderRadius: "16px 16px 16px 4px", padding: "9px 13px", maxWidth: "82%", fontSize: 13, lineHeight: 1.45 }}>
+              Hey! 👋 Let's get you set up. Tell me a bit about yourself and I'll build your first skill sheet.
             </div>
           </div>
         </div>
 
         {/* Signup form */}
-        <div style={{ background: "#1C1C1E", padding: "10px 10px 14px", flexShrink: 0, borderTop: "0.5px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ flex: 1, overflowY: "auto", background: "#1C1C1E", padding: "10px 12px 16px", borderTop: "0.5px solid rgba(255,255,255,0.08)" }}>
           {submitted ? (
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ textAlign: "center", padding: "40px 0" }}>
               <p style={{ color: "white", fontWeight: 700, fontSize: 14, margin: 0 }}>Ok! I just sent you a message.</p>
               <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, margin: "4px 0 0" }}>Check your inbox.</p>
             </div>
           ) : (
             <form onSubmit={onSubmit}>
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Your name"
+                style={inputStyle}
+              />
               <input
                 id="email-input"
                 type="email"
@@ -183,20 +210,74 @@ function Phone({ email, setEmail, classes, setClasses, onSubmit, submitted, load
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@gmail.com"
-                style={{ display: "block", width: "100%", background: "#2C2C2E", border: "none", borderRadius: 10, padding: "9px 12px", color: "white", fontSize: 13, outline: "none", marginBottom: 7, boxSizing: "border-box" }}
+                style={inputStyle}
               />
-              <textarea
-                value={classes}
-                onChange={e => setClasses(e.target.value)}
-                placeholder={"MATH 110\nGE 122\nGE 152\nGE 172\nCMPT 142\nMATH 133"}
-                rows={3}
-                style={{ display: "block", width: "100%", background: "#2C2C2E", border: "none", borderRadius: 10, padding: "9px 12px", color: "white", fontSize: 13, outline: "none", resize: "none", marginBottom: 7, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.5 }}
+              <input
+                value={university}
+                onChange={e => setUniversity(e.target.value)}
+                placeholder="University"
+                style={inputStyle}
               />
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "#2C2C2E", borderRadius: 10, padding: "8px 12px", color: "rgba(255,255,255,0.45)", fontSize: 12, cursor: "pointer", marginBottom: 8 }}>
-                <Upload size={12} />
-                Upload syllabus (recommended)
-                <input type="file" accept=".pdf,.doc,.docx" style={{ display: "none" }} />
-              </label>
+
+              <p style={sectionLabel}>What do you need help with?</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {TOPIC_OPTIONS.map(t => (
+                  <Chip key={t} label={t} selected={topics.includes(t)} onClick={() => toggleTopic(t)} />
+                ))}
+              </div>
+
+              <p style={sectionLabel}>Your classes</p>
+              {classRows.map((row, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    <input
+                      value={row.name}
+                      onChange={e => updateClassName(i, e.target.value)}
+                      placeholder="e.g. MATH 133"
+                      style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+                    />
+                    {classRows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeClassRow(i)}
+                        style={{ background: "#2C2C2E", color: "rgba(255,255,255,0.5)", border: "none", borderRadius: 10, width: 32, flexShrink: 0, cursor: "pointer", fontSize: 16 }}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, background: "#2C2C2E", borderRadius: 10, padding: "7px 12px", color: row.fileName ? G : "rgba(255,255,255,0.45)", fontSize: 12, cursor: "pointer" }}>
+                    <Upload size={12} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.fileName || "Upload syllabus"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      style={{ display: "none" }}
+                      onChange={e => updateClassFile(i, e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addClassRow}
+                style={{ background: "none", border: "none", color: G, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "2px 0 6px" }}
+              >
+                + Add another class
+              </button>
+
+              <p style={sectionLabel}>What are you looking for?</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                {GOAL_OPTIONS.map(g => (
+                  <Chip key={g} label={g} selected={goals.includes(g)} onClick={() => toggleGoal(g)} />
+                ))}
+              </div>
+
+              {error && (
+                <p style={{ color: "#FF6B6B", fontSize: 12, margin: "0 0 8px" }}>
+                  Something went wrong sending that. Try again in a moment.
+                </p>
+              )}
               <button
                 type="submit"
                 disabled={loading}
@@ -213,89 +294,126 @@ function Phone({ email, setEmail, classes, setClasses, onSubmit, submitted, load
   );
 }
 
+// ─── Exam-ready proof card (the signature visual) ─────────────────────────────
+
+function ExamReadyCard() {
+  return (
+    <div style={{
+      width: 400, maxWidth: "100%",
+      background: "white",
+      border: `1px solid ${BD}`,
+      borderRadius: 24,
+      padding: "26px 28px 22px",
+      boxShadow: "0 30px 70px rgba(0,0,0,0.14), 0 4px 14px rgba(0,0,0,0.06)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 26 }}>
+        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: M }}>
+          Time to exam-ready
+        </span>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: G, boxShadow: `0 0 0 4px ${G}22` }} />
+      </div>
+
+      <div style={{ position: "relative", paddingTop: 26 }}>
+        {/* PASS threshold line spanning both tracks */}
+        <div style={{ position: "absolute", left: "22%", top: 0, bottom: 6, width: 2, background: G, opacity: 0.35 }} />
+        <div style={{ position: "absolute", left: "22%", top: 0, transform: "translateX(-50%)", fontFamily: MONO, color: G, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>
+          PASS
+        </div>
+
+        {/* Track: studying alone */}
+        <div style={{ marginBottom: 34 }}>
+          <p style={{ color: M, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Studying alone</p>
+          <div style={{ position: "relative", height: 12, borderRadius: 999, background: "#F3F4F6" }}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "88%", borderRadius: 999, background: "#D1D5DB" }} />
+            <div style={{ position: "absolute", left: "88%", top: "50%", transform: "translate(-50%, -50%)", width: 12, height: 12, borderRadius: "50%", background: "#9CA3AF", boxShadow: "0 0 0 4px white" }} />
+          </div>
+          <p style={{ fontFamily: MONO, color: "#9CA3AF", fontSize: 12, fontWeight: 700, marginTop: 8 }}>~10+ HRS</p>
+        </div>
+
+        {/* Track: with Quisly */}
+        <div>
+          <p style={{ color: T, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>With Quisly</p>
+          <div style={{ position: "relative", height: 12, borderRadius: 999, background: "#F3F4F6" }}>
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: "22%" }}
+              transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+              style={{ position: "absolute", top: 0, bottom: 0, left: 0, borderRadius: 999, background: `linear-gradient(90deg, #22b04a, ${G})` }}
+            />
+            <div style={{ position: "absolute", left: "22%", top: "50%", transform: "translate(-50%, -50%)", width: 12, height: 12, borderRadius: "50%", background: G, boxShadow: `0 0 0 4px white, 0 0 0 6px ${G}33` }} />
+          </div>
+          <p style={{ fontFamily: MONO, color: G, fontSize: 12, fontWeight: 800, marginTop: 8 }}>3 HRS</p>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 20, lineHeight: 1.5 }}>
+        Based on a typical first-year calc/engineering weekly topic.
+      </p>
+    </div>
+  );
+}
+
 // ─── Hero section ─────────────────────────────────────────────────────────────
 
-function Hero({ email, setEmail, classes, setClasses, onSubmit, submitted, loading, onCTA }: {
-  email: string; setEmail: (v: string) => void;
-  classes: string; setClasses: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  submitted: boolean; loading: boolean;
-  onCTA: () => void;
-}) {
+function Hero({ onCTA }: { onCTA: () => void }) {
   return (
-    <section style={{ maxWidth: 1080, margin: "0 auto", padding: "72px 24px 80px", display: "flex", alignItems: "center", gap: 60, flexWrap: "wrap" }}>
+    <section style={{ maxWidth: 1080, margin: "0 auto", padding: "72px 24px 96px", display: "flex", alignItems: "center", gap: 60, flexWrap: "wrap" }}>
 
       {/* Left */}
-      <div style={{ flex: "1 1 360px", minWidth: 280 }}>
+      <div style={{ flex: "1 1 380px", minWidth: 300 }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <div style={{
-            width: 160, height: 160,
-            borderRadius: "50%",
-            marginBottom: 28,
-            flexShrink: 0,
-            backgroundImage: "url('/quisly-mascot.png')",
-            backgroundSize: "210%",
-            backgroundPosition: "50% 12%",
-          }} />
+          <p style={{ color: M, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 12px" }}>
+            The problem
+          </p>
+          <p style={{ color: T, fontSize: "clamp(19px, 2.4vw, 24px)", fontWeight: 600, lineHeight: 1.4, letterSpacing: "-0.01em", maxWidth: 520, margin: "0 0 28px" }}>
+            Classes take months to get through. Between problem sets, labs, and everything else, <span style={{ color: G }}>time management</span> is what decides who gets ahead and who falls behind.
+          </p>
         </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          style={{ fontSize: "clamp(44px, 5.5vw, 72px)", fontWeight: 900, lineHeight: 1.06, letterSpacing: "-0.03em", color: T, margin: "0 0 20px" }}
+          style={{ fontSize: "clamp(40px, 5vw, 64px)", fontWeight: 900, lineHeight: 1.08, letterSpacing: "-0.03em", color: T, margin: "0 0 28px" }}
         >
-          Hey, I'm Quisly,<br />
-          I let you learn<br />
-          <span style={{ color: G }}>your classes fast.</span>
+          Knowing nothing to passing,<br />
+          in as little as <span style={{ color: G }}>3 hours.</span>
         </motion.h1>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+              backgroundImage: "url('/quisly-mascot.png')", backgroundSize: "210%", backgroundPosition: "50% 12%",
+            }} />
+            <p style={{ color: M, fontSize: 15, margin: 0 }}>
+              I'm <strong style={{ color: T }}>Quisly</strong>. I turn your classes into simple skill sheets you can actually learn from, then bring in real tutors so you learn fast.
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.42 }}>
           <button
             onClick={onCTA}
-            style={{ background: "none", border: "none", color: G, fontWeight: 700, fontSize: 18, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}
+            style={{ background: G, color: "white", border: "none", borderRadius: 100, padding: "16px 30px", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 12px 28px ${G}40`, transition: "transform 0.15s, box-shadow 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 16px 34px ${G}55`; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 12px 28px ${G}40`; }}
           >
-            Message me now!
+            Get my first skill sheet, free →
           </button>
         </motion.div>
       </div>
 
-      {/* Right – phone */}
+      {/* Right – proof visual */}
       <motion.div
         initial={{ opacity: 0, x: 40, y: 8 }}
         animate={{ opacity: 1, x: 0, y: 0 }}
         transition={{ duration: 0.7, delay: 0.18, ease: "easeOut" }}
         style={{ flexShrink: 0, margin: "0 auto" }}
       >
-        <Phone email={email} setEmail={setEmail} classes={classes} setClasses={setClasses} onSubmit={onSubmit} submitted={submitted} loading={loading} />
+        <ExamReadyCard />
       </motion.div>
 
-    </section>
-  );
-}
-
-// ─── University logos ─────────────────────────────────────────────────────────
-
-function Unis() {
-  const unis = [
-    "University of Saskatchewan",
-    "University of Alberta",
-    "University of Calgary",
-    "University of Regina",
-    "University of Manitoba",
-  ];
-  return (
-    <section style={{ borderTop: `1px solid ${BD}`, borderBottom: `1px solid ${BD}`, padding: "44px 24px" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
-        <p style={{ color: M, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 30 }}>
-          Helping students succeed across Canadian universities
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "12px 40px" }}>
-          {unis.map(u => (
-            <span key={u} style={{ color: "#9CA3AF", fontWeight: 700, fontSize: 14 }}>{u}</span>
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
@@ -304,226 +422,52 @@ function Unis() {
 
 function HowItWorks() {
   const steps = [
-    { n: "1", eyebrow: "Every week I will...", title: "Send you skill sheets for your classes" },
-    { n: "2", eyebrow: "If you need additional help I will...", title: "Connect you with local tutors" },
-    { n: "3", eyebrow: "Before an exam I will...", title: "Inform you of tutorial sessions hosted by experts" },
+    { n: "1", icon: "📄", eyebrow: "Every week", title: "Free skill sheets delivered to you", body: "Spend less time confused in lectures: the material's already broken down before you walk in." },
+    { n: "2", icon: "🤝", eyebrow: "The moment you're stuck", title: "Connected with local tutors, immediately", body: "Personalized help, on demand, not a form you fill out and wait on." },
+    { n: "3", icon: "🎯", eyebrow: "Before every exam", title: "Notified about review sessions", body: "So the last week before an exam isn't the first time you're seriously reviewing." },
   ];
   return (
     <section style={{ padding: "80px 24px", maxWidth: 1080, margin: "0 auto" }}>
+      <style>{`
+        .qs-step { position: relative; transition: transform 0.22s ease, box-shadow 0.22s ease; }
+        .qs-step:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(0,0,0,0.09); }
+        @media (min-width: 860px) {
+          .qs-steps-grid > *:not(:last-child) .qs-step::after {
+            content: '';
+            position: absolute;
+            top: 30px;
+            left: 100%;
+            width: 20px;
+            height: 2px;
+            background: repeating-linear-gradient(90deg, ${G} 0 4px, transparent 4px 8px);
+          }
+        }
+      `}</style>
       <SR>
-        <h2 style={{ fontSize: "clamp(26px, 3.5vw, 42px)", fontWeight: 900, color: T, letterSpacing: "-0.02em", marginBottom: 40 }}>
-          How do I do this? 3 Ways.....
+        <p style={{ color: M, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>
+          How you get there
+        </p>
+        <h2 style={{ fontSize: "clamp(26px, 3.5vw, 42px)", fontWeight: 900, color: T, letterSpacing: "-0.02em", marginBottom: 16 }}>
+          From nothing to passing, in three steps.
         </h2>
+        <p style={{ color: M, fontSize: 16, maxWidth: 620, lineHeight: 1.6, marginBottom: 40 }}>
+          I analyze your syllabus and deliver customized content scheduled for exactly when you need it: not a generic study guide, a plan built around your actual course.
+        </p>
       </SR>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
+      <div className="qs-steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
         {steps.map((s, i) => (
           <SR key={s.n} delay={i * 0.1}>
-            <div style={{ background: C, borderRadius: 20, padding: "32px 28px", border: `1px solid ${BD}` }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: G, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: 16, marginBottom: 16 }}>
+            <div className="qs-step" style={{ position: "relative", background: C, borderRadius: 20, padding: "32px 28px", border: `1px solid ${BD}`, overflow: "hidden" }}>
+              <span style={{ position: "absolute", top: 12, right: 16, fontSize: 40, opacity: 0.12, lineHeight: 1 }}>{s.icon}</span>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: G, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: 17, marginBottom: 16, boxShadow: `0 0 0 6px ${G}1F` }}>
                 {s.n}
               </div>
-              <p style={{ color: M, fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>{s.eyebrow}</p>
-              <h3 style={{ fontWeight: 800, fontSize: 17, color: T, margin: 0, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{s.title}</h3>
+              <p style={{ color: G, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 8px" }}>{s.eyebrow}</p>
+              <h3 style={{ fontWeight: 800, fontSize: 17, color: T, margin: "0 0 10px", letterSpacing: "-0.01em", lineHeight: 1.35 }}>{s.title}</h3>
+              <p style={{ color: M, fontSize: 14, lineHeight: 1.6, margin: 0 }}>{s.body}</p>
             </div>
           </SR>
         ))}
-      </div>
-    </section>
-  );
-}
-
-// ─── Different from lectures ──────────────────────────────────────────────────
-
-function DifferentFromLectures() {
-  return (
-    <SR>
-      <section style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto" }}>
-        <h2 style={{ fontSize: "clamp(26px, 3.5vw, 42px)", fontWeight: 900, color: T, letterSpacing: "-0.02em", marginBottom: 40 }}>
-          How am I different from lectures?
-        </h2>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          {/* Lectures column */}
-          <div style={{ background: C, borderRadius: 20, padding: "36px 32px", border: `1px solid ${BD}` }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: M, marginBottom: 24 }}>Lectures</p>
-            {[
-              "Hours of content dumped on you every week",
-              "You guess what's actually on the exam",
-              "Finding extra help is your problem",
-              "Notes scattered across slides and textbooks",
-            ].map(t => (
-              <div key={t} style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
-                <span style={{ color: "#EF4444", fontSize: 16, flexShrink: 0, marginTop: 1 }}>✕</span>
-                <span style={{ color: M, fontSize: 15, lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Quisly column */}
-          <div style={{ background: "#111", borderRadius: 20, padding: "36px 32px" }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: G, marginBottom: 24 }}>Quisly</p>
-            {[
-              "One clean skill sheet per week — nothing more",
-              "Exactly the skills and examples you need to not only pass but ace the exam",
-              "Tutor connections made for you, instantly",
-              "Everything on a single, simple sheet every week",
-            ].map(t => (
-              <div key={t} style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
-                <span style={{ color: G, fontSize: 16, flexShrink: 0, marginTop: 1 }}>✓</span>
-                <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 15, lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </SR>
-  );
-}
-
-// ─── Who am I for ─────────────────────────────────────────────────────────────
-
-function WhoAmIFor() {
-  return (
-    <section style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-
-        {/* Who am I for */}
-        <SR delay={0}>
-          <div style={{ background: C, borderRadius: 20, padding: "36px 32px", border: `1px solid ${BD}`, height: "100%" }}>
-            <h2 style={{ fontSize: "clamp(22px, 2.5vw, 32px)", fontWeight: 900, color: "#111", letterSpacing: "-0.02em", marginBottom: 20 }}>
-              Who am I for?
-            </h2>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.65, marginBottom: 20 }}>
-              Right now I help students taking first year engineering and calculus classes
-            </p>
-            <p style={{ fontSize: 14, fontWeight: 700, color: "#111", marginBottom: 14 }}>Examples include:</p>
-            {["Calculus I", "Mechanics", "Circuits", "Programming"].map(c => (
-              <div key={c} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: G, flexShrink: 0 }} />
-                <span style={{ color: "#111", fontSize: 15, fontWeight: 500 }}>{c}</span>
-              </div>
-            ))}
-          </div>
-        </SR>
-
-        {/* How do I do this */}
-        <SR delay={0.1}>
-          <div style={{ background: "#111", borderRadius: 20, padding: "36px 32px", height: "100%" }}>
-            <h2 style={{ fontSize: "clamp(22px, 2.5vw, 32px)", fontWeight: 900, color: "white", letterSpacing: "-0.02em", marginBottom: 28 }}>
-              How do I do this?
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {[
-                "I analyze the syllabus you uploaded and figure out the skills you need to know at the end of each week",
-                "I am connected to a network of tutors already and make the intro for you",
-              ].map((text, i) => (
-                <div key={i} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: G, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                    {i + 1}
-                  </div>
-                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 15, lineHeight: 1.65, margin: 0 }}>{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </SR>
-
-      </div>
-    </section>
-  );
-}
-
-// ─── Features + skill sheet example ──────────────────────────────────────────
-
-function Features() {
-  const feats = [
-    { icon: "📄", title: "Weekly Skill Sheets", body: "Receive concise weekly summaries of everything covered in class so you always know what skills to practice." },
-    { icon: "🤝", title: "Tutor Connections", body: "When you need extra help, Quisly connects you with students who can help you learn faster." },
-    { icon: "🎯", title: "Review Sessions", body: "Receive invitations to high-impact review sessions before major midterms and finals." },
-  ];
-  return (
-    <section style={{ background: C, borderTop: `1px solid ${BD}`, borderBottom: `1px solid ${BD}`, padding: "96px 24px" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-        <SR>
-          <h2 style={{ fontSize: "clamp(32px, 4vw, 52px)", fontWeight: 900, color: T, letterSpacing: "-0.03em", textAlign: "center", marginBottom: 60 }}>
-            Everything you need to stay ahead.
-          </h2>
-        </SR>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 22 }}>
-          {feats.map((f, i) => (
-            <SR key={f.title} delay={i * 0.1}>
-              <div style={{ background: "white", borderRadius: 20, padding: "34px 30px", border: `1px solid ${BD}`, boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                <div style={{ fontSize: 36, marginBottom: 18 }}>{f.icon}</div>
-                <h3 style={{ fontWeight: 800, fontSize: 18, color: T, marginBottom: 10, letterSpacing: "-0.02em" }}>{f.title}</h3>
-                <p style={{ color: M, fontSize: 14, lineHeight: 1.65, margin: 0 }}>{f.body}</p>
-              </div>
-            </SR>
-          ))}
-        </div>
-
-        {/* Example skill sheet card */}
-        <SR delay={0.25}>
-          <div style={{ maxWidth: 380, margin: "56px auto 0", background: "white", borderRadius: 20, padding: "32px", border: `1px solid ${BD}`, boxShadow: "0 6px 28px rgba(0,0,0,0.07)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-              <span style={{ background: G, color: "white", borderRadius: 100, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>Week 5</span>
-              <span style={{ color: M, fontSize: 13, fontWeight: 600 }}>Calculus I</span>
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <p style={{ color: T, fontWeight: 700, fontSize: 13, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Skills learned</p>
-              {["Derivatives", "Chain Rule", "Related Rates"].map(s => (
-                <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span>✅</span>
-                  <span style={{ color: T, fontSize: 14 }}>{s}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <p style={{ color: T, fontWeight: 700, fontSize: 13, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Practice</p>
-              {["Differentiate composite functions", "Solve optimization problems"].map(p => (
-                <p key={p} style={{ color: M, fontSize: 13, margin: "0 0 7px", paddingLeft: 12, borderLeft: `3px solid ${BD}` }}>{p}</p>
-              ))}
-            </div>
-            <div>
-              <p style={{ color: T, fontWeight: 700, fontSize: 13, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Common mistakes</p>
-              {["Forgetting inner derivatives", "Sign errors"].map(m => (
-                <p key={m} style={{ color: M, fontSize: 13, margin: "0 0 7px", paddingLeft: 12, borderLeft: "3px solid #FCA5A5" }}>⚠️ {m}</p>
-              ))}
-            </div>
-          </div>
-        </SR>
-      </div>
-    </section>
-  );
-}
-
-// ─── Testimonials ─────────────────────────────────────────────────────────────
-
-function Testimonials() {
-  const quotes = [
-    { body: "I actually knew what to study every week instead of cramming before midterms." },
-    { body: "The weekly emails kept me accountable all semester." },
-    { body: "The review sessions saved me before finals." },
-  ];
-  return (
-    <section style={{ padding: "96px 24px" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-        <SR>
-          <h2 style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 900, color: T, letterSpacing: "-0.03em", textAlign: "center", marginBottom: 56 }}>
-            What students are saying
-          </h2>
-        </SR>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
-          {quotes.map((q, i) => (
-            <SR key={i} delay={i * 0.1}>
-              <div style={{ background: C, borderRadius: 20, padding: "32px 28px", border: `1px solid ${BD}` }}>
-                <div style={{ color: "#FCD34D", fontSize: 16, marginBottom: 18, letterSpacing: 2 }}>★★★★★</div>
-                <p style={{ color: T, fontSize: 16, lineHeight: 1.65, fontStyle: "italic", margin: "0 0 20px" }}>"{q.body}"</p>
-                <p style={{ color: M, fontSize: 13, fontWeight: 600, margin: 0 }}>— Student</p>
-              </div>
-            </SR>
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -532,46 +476,134 @@ function Testimonials() {
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 
 function FAQ() {
-  const [open, setOpen] = useState<number | null>(null);
-  const items = [
-    { q: "Is it free?", a: "Yes. Weekly skill sheets are completely free." },
-    { q: "Do I need to upload a syllabus?", a: "No. But it helps Quisly personalize everything." },
-    { q: "Which universities are supported?", a: "Any university." },
-    { q: "How often do I receive emails?", a: "Usually once each week." },
-    { q: "Can I add more classes later?", a: "Yes." },
+  const [open, setOpen] = useState<number | null>(0);
+  const faq = [
+    { q: "Who is this for?", a: "Students taking first-year calculus and engineering classes who want to get ahead, go from knowing nothing to passing, and move faster than the rest of the class." },
+    { q: "Is it actually free?", a: "Yes. All of the skill sheets given out for the first half of this term are completely free." },
+    { q: "Do I need to upload my syllabus?", a: "No, but it's how I schedule content for exactly when you need it." },
+    { q: "What if I'm not in calculus or engineering?", a: "That's who I'm built for right now. More classes are coming." },
   ];
   return (
-    <section style={{ background: C, borderTop: `1px solid ${BD}`, borderBottom: `1px solid ${BD}`, padding: "96px 24px" }}>
-      <div style={{ maxWidth: 620, margin: "0 auto" }}>
-        <SR>
-          <h2 style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 900, color: T, letterSpacing: "-0.03em", textAlign: "center", marginBottom: 56 }}>
-            Frequently asked questions
-          </h2>
-        </SR>
-        {items.map((item, i) => (
-          <SR key={i} delay={i * 0.05}>
-            <div style={{ borderBottom: `1px solid ${BD}` }}>
+    <section style={{ padding: "0 24px 96px", maxWidth: 620, margin: "0 auto" }}>
+      <SR>
+        <h2 style={{ fontSize: "clamp(24px, 3vw, 34px)", fontWeight: 900, color: T, letterSpacing: "-0.02em", marginBottom: 24 }}>
+          FAQ
+        </h2>
+        <div style={{ background: "#111", borderRadius: 20, padding: "8px 32px" }}>
+          {faq.map((item, i) => (
+            <div key={item.q} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
               <button
                 onClick={() => setOpen(open === i ? null : i)}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", padding: "22px 0", background: "none", border: "none", cursor: "pointer" }}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "18px 0", background: "none", border: "none", cursor: "pointer" }}
               >
-                <span style={{ fontWeight: 700, fontSize: 16, color: T }}>{item.q}</span>
+                <span style={{ color: "white", fontSize: 15, fontWeight: 700 }}>{item.q}</span>
                 <ChevronDown
-                  size={18}
-                  style={{ color: M, transition: "transform 0.2s", transform: open === i ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+                  size={16}
+                  style={{ color: "rgba(255,255,255,0.5)", flexShrink: 0, transition: "transform 0.2s", transform: open === i ? "rotate(180deg)" : "rotate(0deg)" }}
                 />
               </button>
               <motion.div
                 initial={false}
                 animate={{ height: open === i ? "auto" : 0, opacity: open === i ? 1 : 0 }}
-                transition={{ duration: 0.22, ease: "easeOut" }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
                 style={{ overflow: "hidden" }}
               >
-                <p style={{ color: M, fontSize: 15, lineHeight: 1.65, paddingBottom: 22, margin: 0 }}>{item.a}</p>
+                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.55, margin: "0 0 18px" }}>{item.a}</p>
               </motion.div>
             </div>
-          </SR>
-        ))}
+          ))}
+        </div>
+      </SR>
+    </section>
+  );
+}
+
+// ─── Skill sheet email preview ────────────────────────────────────────────────
+
+function SkillSheetPreview() {
+  return (
+    <section style={{ background: C, borderTop: `1px solid ${BD}`, borderBottom: `1px solid ${BD}`, padding: "96px 24px" }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+        <SR>
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <p style={{ color: M, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>
+              The email
+            </p>
+            <h2 style={{ fontSize: "clamp(28px, 3.8vw, 46px)", fontWeight: 900, color: T, letterSpacing: "-0.02em", marginBottom: 16 }}>
+              Here's what actually lands in your inbox.
+            </h2>
+            <p style={{ color: M, fontSize: 16, maxWidth: 540, margin: "0 auto", lineHeight: 1.6 }}>
+              No app to check, no dashboard to remember. One email a week, built around exactly what your class covered.
+            </p>
+          </div>
+        </SR>
+
+        <SR delay={0.15}>
+          <div style={{ maxWidth: 480, margin: "0 auto", background: "white", borderRadius: 20, border: `1px solid ${BD}`, boxShadow: "0 24px 64px rgba(0,0,0,0.1)", overflow: "hidden" }}>
+
+            {/* Email header */}
+            <div style={{ padding: "18px 24px", borderBottom: `1px solid ${BD}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, backgroundImage: "url('/quisly-mascot.png')", backgroundSize: "210%", backgroundPosition: "50% 12%" }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: T, margin: 0 }}>Quisly</p>
+                  <p style={{ fontSize: 12, color: M, margin: 0 }}>to you</p>
+                </div>
+                <span style={{ fontFamily: MONO, fontSize: 12, color: M, whiteSpace: "nowrap" }}>Mon, 9:02 AM</span>
+              </div>
+              <p style={{ fontWeight: 800, fontSize: 16, color: T, margin: 0, letterSpacing: "-0.01em" }}>
+                📄 Your skill sheet: Basic Differentiation &amp; Integration
+              </p>
+            </div>
+
+            {/* Email body */}
+            <div style={{ padding: "26px 24px 30px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <span style={{ fontFamily: MONO, background: G, color: "white", borderRadius: 100, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>RLO1</span>
+                <span style={{ fontFamily: MONO, color: M, fontSize: 12, fontWeight: 600 }}>MATH 133.4</span>
+              </div>
+
+              <div style={{ background: `${G}14`, border: `1px solid ${G}33`, borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
+                <p style={{ color: G, fontFamily: MONO, fontWeight: 700, fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Summary</p>
+                <p style={{ color: T, fontSize: 13, lineHeight: 1.55, margin: 0 }}>
+                  <strong>Derivatives</strong> tell us the slope at a point: how fast a function is changing.<br />
+                  <strong>Integrals</strong> tell us the area under a curve over an interval.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: G, color: "white", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>1</div>
+                <div>
+                  <p style={{ color: T, fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Power Rule for Differentiation</p>
+                  <div style={{ background: C, border: `1px solid ${BD}`, borderRadius: 8, padding: "8px 12px", marginBottom: 8, textAlign: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T }}>d/dx [x<sup>n</sup>] = n&middot;x<sup>n-1</sup></span>
+                  </div>
+                  <p style={{ color: M, fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+                    f(x) = 3x<sup>4</sup> - 5x<sup>2</sup> + 7&nbsp;&nbsp;&rarr;&nbsp;&nbsp;<strong style={{ color: G }}>f'(x) = 12x<sup>3</sup> - 10x</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: G, color: "white", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>2</div>
+                <div>
+                  <p style={{ color: T, fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Power Rule for Integration</p>
+                  <div style={{ background: C, border: `1px solid ${BD}`, borderRadius: 8, padding: "8px 12px", marginBottom: 8, textAlign: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T }}>&int; x<sup>n</sup> dx = x<sup>n+1</sup>/(n+1) + C</span>
+                  </div>
+                  <p style={{ color: M, fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+                    &int; 4x<sup>3</sup> - 6x dx&nbsp;&nbsp;&rarr;&nbsp;&nbsp;<strong style={{ color: G }}>x<sup>4</sup> - 3x<sup>2</sup> + C</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ background: "#111", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+                <p style={{ color: "white", fontSize: 13, fontWeight: 700, margin: 0 }}>Need help with any of this?</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, margin: "4px 0 0" }}>Reply and I'll connect you with a tutor.</p>
+              </div>
+            </div>
+          </div>
+        </SR>
       </div>
     </section>
   );
@@ -598,16 +630,19 @@ function FinalCTA({ onCTA }: { onCTA: () => void }) {
           textAlign: "center",
         }}
       >
-        <h2 style={{ fontSize: "clamp(40px, 6vw, 72px)", fontWeight: 700, color: "white", letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 36 }}>
-          Contact me now.
+        <h2 style={{ fontSize: "clamp(36px, 5.5vw, 64px)", fontWeight: 800, color: "white", letterSpacing: "-0.02em", lineHeight: 1.15, marginBottom: 16 }}>
+          Your next exam is closer than you think.
         </h2>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 17, maxWidth: 480, margin: "0 auto 36px", lineHeight: 1.6 }}>
+          Stop guessing what's on it. Get your first skill sheet, free, in the next 20 seconds.
+        </p>
         <button
           onClick={onCTA}
-          style={{ background: "white", color: "#111", border: "none", borderRadius: 100, padding: "16px 36px", fontWeight: 600, fontSize: 16, cursor: "pointer", transition: "opacity 0.15s" }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-          onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+          style={{ background: G, color: "white", border: "none", borderRadius: 100, padding: "16px 36px", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 12px 28px ${G}40`, transition: "transform 0.15s, box-shadow 0.15s" }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 16px 34px ${G}55`; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 12px 28px ${G}40`; }}
         >
-          Get Started
+          Get my first skill sheet, free →
         </button>
       </motion.div>
     </section>
@@ -643,52 +678,58 @@ function Footer() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [classes, setClasses] = useState("");
+  const [university, setUniversity] = useState("");
+  const [topics, setTopics] = useState<string[]>([]);
+  const [goals, setGoals] = useState<string[]>([]);
+  const [classRows, setClassRows] = useState<ClassRow[]>([{ name: "", fileName: "" }]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   const openPhone = () => setShowModal(true);
-
-  const focusForm = () => {
-    const el = document.getElementById("email-input");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTimeout(() => el.focus(), 500);
-    }
-  };
+  const toggleTopic = (t: string) => setTopics(ts => (ts.includes(t) ? ts.filter(x => x !== t) : [...ts, t]));
+  const toggleGoal = (g: string) => setGoals(gs => (gs.includes(g) ? gs.filter(x => x !== g) : [...gs, g]));
+  const updateClassName = (i: number, v: string) => setClassRows(rows => rows.map((r, idx) => (idx === i ? { ...r, name: v } : r)));
+  const updateClassFile = (i: number, f: File | null) => setClassRows(rows => rows.map((r, idx) => (idx === i ? { ...r, fileName: f?.name ?? "" } : r)));
+  const addClassRow = () => setClassRows(rows => [...rows, { name: "", fileName: "" }]);
+  const removeClassRow = (i: number) => setClassRows(rows => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(false);
     try {
-      await fetch("/api/signup", {
+      const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name,
           email,
-          classes: classes.split("\n").map(s => s.trim()).filter(Boolean),
+          university,
+          topics,
+          goals,
+          classes: classRows.map(r => r.name.trim()).filter(Boolean),
         }),
       });
-    } catch { /* backend may be offline; still show success */ }
-    setSubmitted(true);
+      if (!res.ok) throw new Error("signup failed");
+      setSubmitted(true);
+    } catch {
+      setError(true);
+    }
     setLoading(false);
   };
 
   return (
     <div style={{ background: "#fff", color: T, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif", minHeight: "100vh", overflowX: "hidden" }}>
-      <Navbar onCTA={focusForm} />
+      <Navbar onCTA={openPhone} />
       <Bar />
-      <Hero
-        email={email} setEmail={setEmail}
-        classes={classes} setClasses={setClasses}
-        onSubmit={handleSubmit} submitted={submitted} loading={loading}
-        onCTA={openPhone}
-      />
+      <Hero onCTA={openPhone} />
       <HowItWorks />
-      <DifferentFromLectures />
-      <WhoAmIFor />
+      <SkillSheetPreview />
+      <FAQ />
       <FinalCTA onCTA={openPhone} />
       <Footer />
 
@@ -705,9 +746,14 @@ export default function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => v
             onClick={e => e.stopPropagation()}
           >
             <Phone
+              name={name} setName={setName}
               email={email} setEmail={setEmail}
-              classes={classes} setClasses={setClasses}
-              onSubmit={handleSubmit} submitted={submitted} loading={loading}
+              university={university} setUniversity={setUniversity}
+              topics={topics} toggleTopic={toggleTopic}
+              goals={goals} toggleGoal={toggleGoal}
+              classRows={classRows} updateClassName={updateClassName} updateClassFile={updateClassFile}
+              addClassRow={addClassRow} removeClassRow={removeClassRow}
+              onSubmit={handleSubmit} submitted={submitted} loading={loading} error={error}
             />
           </motion.div>
         </div>
