@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
@@ -286,13 +286,26 @@ export default function AdminPage() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-6 md:px-8 py-6 space-y-6">
-        <WeeklyEmailsManager />
-        <ClassDocumentBox />
-        <AutoScheduleWeeklySheets />
-        <RenderSkillSheetTool />
-        <AISyllabusImport />
-        <AllSignupsPanel />
+      <div className="px-6 md:px-8 py-6">
+        <Tabs defaultValue="sheets">
+          <TabsList>
+            <TabsTrigger value="sheets">Skill Sheets</TabsTrigger>
+            <TabsTrigger value="tools">Tools</TabsTrigger>
+            <TabsTrigger value="signups">Signups</TabsTrigger>
+          </TabsList>
+          <TabsContent value="sheets">
+            <WeeklyEmailsManager />
+          </TabsContent>
+          <TabsContent value="tools" className="space-y-6 pt-4 max-w-2xl">
+            <ClassDocumentBox />
+            <AutoScheduleWeeklySheets />
+            <RenderSkillSheetTool />
+            <AISyllabusImport />
+          </TabsContent>
+          <TabsContent value="signups" className="pt-4">
+            <AllSignupsPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
@@ -2578,6 +2591,36 @@ type WeeklyDoc = {
 
 type DocRecipient = { email: string; excluded: boolean };
 
+// Renders "in 2d 4h" / "in 45m" style countdowns to a doc's next 9am CST send,
+// re-computed every 30s so it stays live without a full doc refetch.
+function formatCountdown(target: Date, now: Date): string {
+  const ms = target.getTime() - now.getTime();
+  if (ms <= 0) return "sending today";
+  const minutes = Math.floor(ms / 60000);
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  const mins = minutes % 60;
+  if (days > 0) return `in ${days}d ${hours}h`;
+  if (hours > 0) return `in ${hours}h ${mins}m`;
+  if (mins > 0) return `in ${mins}m`;
+  return "in <1m";
+}
+
+function SendCountdown({ scheduledFor, sentAt }: { scheduledFor: string; sentAt: string | null }) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (sentAt) return;
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, [sentAt]);
+
+  if (sentAt) {
+    return <span className="text-xs text-muted-foreground">sent {format(new Date(sentAt), "MMM d, h:mma")}</span>;
+  }
+  return <span className="text-xs text-muted-foreground">{formatCountdown(new Date(scheduledFor), now)}</span>;
+}
+
 function WeeklyEmailsManager() {
   const { toast } = useToast();
   const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
@@ -2698,17 +2741,31 @@ function WeeklyEmailsManager() {
 
   async function handleSendNow(docId: string) {
     setSendingId(docId);
-    const res = await fetch(`/api/admin/weekly-docs/${docId}/send-now`, {
-      method: "POST",
-      headers: await authHeaders(),
-    });
-    setSendingId(null);
-    const data = await res.json();
-    if (res.ok) {
-      toast({ title: `Sent to ${data.sent} students`, description: `${data.docsSent} doc(s) went out` });
-      loadDocs();
-    } else {
-      toast({ title: "Send failed", description: data.message, variant: "destructive" });
+    try {
+      const res = await fetch(`/api/admin/weekly-docs/${docId}/send-now`, {
+        method: "POST",
+        headers: await authHeaders(),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) {
+        const failed = data.failed as { email: string; error: string }[] | undefined;
+        if (failed?.length) {
+          toast({
+            title: `Sent to ${data.sent} of ${data.sent + failed.length} students`,
+            description: `Failed: ${failed.map(f => f.email).join(", ")}`,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: `Sent to ${data.sent} students`, description: `${data.docsSent} doc(s) went out` });
+        }
+        loadDocs();
+      } else {
+        toast({ title: "Send failed", description: data?.message ?? `HTTP ${res.status}`, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Send failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setSendingId(null);
     }
   }
 
@@ -2728,36 +2785,43 @@ function WeeklyEmailsManager() {
 
       <Card>
         <CardHeader><CardTitle className="text-sm">Upload a skill sheet</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-3">
-            <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input
-              ref={fileRef}
-              type="file"
-              accept="application/pdf"
-              onChange={e => setFile(e.target.files?.[0] ?? null)}
-              className="flex-1"
-            />
-            <Button onClick={handleUpload} disabled={!file || uploading}>
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            </Button>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Class</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Skill sheet PDF</Label>
+              <div className="flex gap-2">
+                <Input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => setFile(e.target.files?.[0] ?? null)}
+                  className="flex-1"
+                />
+                <Button onClick={handleUpload} disabled={!file || uploading}>
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Skills file (optional)</Label>
             <Input
               ref={skillsFileRef}
               type="file"
               accept=".js"
               onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
-              className="flex-1"
             />
-            <span className="text-xs text-muted-foreground shrink-0">Skills file (optional)</span>
           </div>
         </CardContent>
       </Card>
@@ -2788,38 +2852,61 @@ function WeeklyEmailsManager() {
                 const recipients = recipientsByDoc[doc.id];
                 const expanded = expandedDocId === doc.id;
                 return (
-                  <div key={doc.id} className="rounded-lg border">
-                    <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div key={doc.id} className="rounded-lg border px-3 py-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="text-sm font-mono truncate">{doc.filename}</span>
                         <Badge variant="secondary" className="shrink-0">{doc.className}</Badge>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
-                              {format(new Date(doc.scheduledFor), "MMM d")}
-                              {doc.sentAt && ` (sent)`}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={new Date(doc.scheduledFor)}
-                              onSelect={date => handleScheduleChange(doc.id, date)}
-                              disabled={{ before: new Date() }}
-                            />
-                            <p className="px-3 pb-3 text-xs text-muted-foreground">
-                              Always sends at 9am CST on the chosen date. Picking a new date re-arms this doc to send again.
-                            </p>
-                          </PopoverContent>
-                        </Popover>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Send now"
+                          onClick={() => handleSendNow(doc.id)}
+                          disabled={sendingId === doc.id}
+                        >
+                          {sendingId === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Delete"
+                          onClick={() => handleDelete(doc.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 text-xs">
+                            <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                            {format(new Date(doc.scheduledFor), "MMM d, '9am CST'")}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={new Date(doc.scheduledFor)}
+                            onSelect={date => handleScheduleChange(doc.id, date)}
+                            disabled={{ before: new Date() }}
+                          />
+                          <p className="px-3 pb-3 text-xs text-muted-foreground">
+                            Always sends at 9am CST on the chosen date. Picking a new date re-arms this doc to send again.
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                      <SendCountdown scheduledFor={doc.scheduledFor} sentAt={doc.sentAt} />
+                      <div className="ml-auto flex items-center gap-0.5">
                         {doc.skills && (
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-7 text-xs"
                             onClick={() => setExpandedSkillsId(v => (v === doc.id ? null : doc.id))}
                           >
                             <ListChecks className="w-3.5 h-3.5 mr-1.5" />
@@ -2827,26 +2914,15 @@ function WeeklyEmailsManager() {
                             <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${expandedSkillsId === doc.id ? "rotate-180" : ""}`} />
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => toggleExpand(doc.id)}>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleExpand(doc.id)}>
                           <Users className="w-3.5 h-3.5 mr-1.5" />
                           {recipients ? recipients.filter(r => !r.excluded).length : "…"}
                           <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleSendNow(doc.id)}
-                          disabled={sendingId === doc.id}
-                        >
-                          {sendingId === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)}>
-                          <X className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
                     {expandedSkillsId === doc.id && doc.skills && (
-                      <div className="border-t px-3 py-2 space-y-1">
+                      <div className="-mx-3 border-t px-3 pt-2 space-y-1">
                         {doc.skills.map((s, i) => (
                           <div key={i} className="text-sm flex items-center gap-2">
                             {s.number != null && <Badge variant="outline" className="text-xs shrink-0">{s.number}</Badge>}
@@ -2856,7 +2932,7 @@ function WeeklyEmailsManager() {
                       </div>
                     )}
                     {expanded && (
-                      <div className="border-t px-3 py-2 space-y-2">
+                      <div className="-mx-3 border-t px-3 pt-2 space-y-2">
                         {!recipients ? (
                           <p className="text-sm text-muted-foreground">Loading…</p>
                         ) : recipients.length === 0 ? (

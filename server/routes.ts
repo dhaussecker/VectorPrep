@@ -386,7 +386,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // due in this run into one email. Used by both the cron poller and "Send Now"
   // (which just marks one doc due-now and calls this, so anything else already
   // due gets swept up in the same email naturally).
-  async function sendDueDocs(): Promise<{ sent: number; docsSent: number }> {
+  async function sendDueDocs(): Promise<{ sent: number; docsSent: number; failed: { email: string; error: string }[] }> {
     const db = new pg.Client(process.env.POSTGRES_URL!);
     await db.connect();
     const { rows: due } = await db.query<WeeklyDocRow>(
@@ -394,7 +394,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     );
     if (due.length === 0) {
       await db.end();
-      return { sent: 0, docsSent: 0 };
+      return { sent: 0, docsSent: 0, failed: [] };
     }
 
     const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
@@ -410,6 +410,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 
     let sent = 0;
+    const failed: { email: string; error: string }[] = [];
     if (resend) {
       for (const { email, classes } of signups) {
         const matchedDocs = due.filter(d =>
@@ -418,44 +419,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         );
         if (matchedDocs.length === 0) continue;
 
-        const attachments = await Promise.all(
-          matchedDocs.map(async d => {
-            const downloadUrl = getDownloadUrl(d.url);
-            const fileRes = await fetch(downloadUrl, {
-              headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
-            });
-            if (!fileRes.ok) throw new Error(`Failed to download ${d.filename}: ${fileRes.status}`);
-            const buf = await fileRes.arrayBuffer();
-            return { filename: d.filename, content: Buffer.from(buf).toString("base64") };
-          })
-        );
+        // Isolated per recipient: one student's failed attachment download or
+        // bounced send used to throw out of the whole loop, which skipped the
+        // sent_at update below entirely — every due doc silently stayed
+        // "unsent" and the exact same failure retried forever on the next
+        // cron run. Catching here lets everyone else's email still go out and
+        // lets the batch reach the sent_at update no matter what.
+        try {
+          const attachments = await Promise.all(
+            matchedDocs.map(async d => {
+              const downloadUrl = getDownloadUrl(d.url);
+              const fileRes = await fetch(downloadUrl, {
+                headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+              });
+              if (!fileRes.ok) throw new Error(`Failed to download ${d.filename}: ${fileRes.status}`);
+              const buf = await fileRes.arrayBuffer();
+              return { filename: d.filename, content: Buffer.from(buf).toString("base64") };
+            })
+          );
 
-        const classListHtml = matchedDocs.map(d => `<li>${d.class_name} — ${d.filename}</li>`).join("");
-        await resend.emails.send({
-          from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
-          to: email,
-          subject: `Your weekly skill sheets are here`,
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
-              <h2 style="margin:0 0 16px;font-size:22px">Your skill sheets for this week</h2>
-              <p style="margin:0 0 12px;color:#444;line-height:1.6">
-                Attached are the skill sheets for:
-              </p>
-              <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
-                ${classListHtml}
-              </ul>
-              <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                Everything you need to know this week — one page per class, nothing more.
-              </p>
-              <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
-            </div>
-          `,
-          attachments,
-        });
+          const classListHtml = matchedDocs.map(d => `<li>${d.class_name} — ${d.filename}</li>`).join("");
+          await resend.emails.send({
+            from: process.env.RESEND_FROM ?? "Quisly <onboarding@resend.dev>",
+            to: email,
+            subject: `Your weekly skill sheets are here`,
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
+                <h2 style="margin:0 0 16px;font-size:22px">Your skill sheets for this week</h2>
+                <p style="margin:0 0 12px;color:#444;line-height:1.6">
+                  Attached are the skill sheets for:
+                </p>
+                <ul style="margin:0 0 20px;padding-left:20px;color:#444;line-height:1.8">
+                  ${classListHtml}
+                </ul>
+                <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                  Everything you need to know this week — one page per class, nothing more.
+                </p>
+                <p style="margin:0;color:#999;font-size:13px">— Quisly</p>
+              </div>
+            `,
+            attachments,
+          });
 
-        sent++;
-        console.log(`[weekly-send] Sent to ${email} — ${matchedDocs.map(d => d.filename).join(", ")}`);
+          sent++;
+          console.log(`[weekly-send] Sent to ${email} — ${matchedDocs.map(d => d.filename).join(", ")}`);
+        } catch (e) {
+          const message = (e as Error).message;
+          failed.push({ email, error: message });
+          console.error(`[weekly-send] Failed to send to ${email}:`, message);
+        }
       }
+    } else {
+      console.warn("[weekly-send] RESEND_API_KEY not configured — marking due docs sent without emailing anyone");
     }
 
     const markDb = new pg.Client(process.env.POSTGRES_URL!);
@@ -463,7 +478,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await markDb.query("UPDATE public.weekly_docs SET sent_at = NOW() WHERE id = ANY($1)", [due.map(d => d.id)]);
     await markDb.end();
 
-    return { sent, docsSent: due.length };
+    return { sent, docsSent: due.length, failed };
   }
 
   // ─── Admin: upload a weekly skill sheet ────────────────────────────────────
@@ -687,16 +702,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: send one doc immediately (bundles anything else already due) ──
   app.post("/api/admin/weekly-docs/:id/send-now", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
-    await db.connect();
-    await db.query(
-      "UPDATE public.weekly_docs SET scheduled_for = NOW(), sent_at = NULL WHERE id = $1",
-      [req.params.id]
-    );
-    await db.end();
+    try {
+      const db = new pg.Client(process.env.POSTGRES_URL!);
+      await db.connect();
+      await db.query(
+        "UPDATE public.weekly_docs SET scheduled_for = NOW(), sent_at = NULL WHERE id = $1",
+        [req.params.id]
+      );
+      await db.end();
 
-    const result = await sendDueDocs();
-    return res.json({ ok: true, ...result });
+      const result = await sendDueDocs();
+      return res.json({ ok: true, ...result });
+    } catch (e) {
+      console.error("[send-now] failed:", e);
+      return res.status(500).json({ message: (e as Error).message || "Send failed" });
+    }
   });
 
   // ─── Cron: poll for due scheduled sends (Vercel cron, daily 9am CST) ──────
@@ -704,9 +724,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const cronSecret = req.headers["authorization"];
     if (cronSecret !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ message: "Unauthorized" });
 
-    const result = await sendDueDocs();
-    console.log(`[cron] ${result.docsSent} doc(s) due — sent to ${result.sent} recipient(s)`);
-    return res.json({ ok: true, ...result });
+    try {
+      const result = await sendDueDocs();
+      console.log(`[cron] ${result.docsSent} doc(s) due — sent to ${result.sent} recipient(s), ${result.failed.length} failed`);
+      return res.json({ ok: true, ...result });
+    } catch (e) {
+      console.error("[cron] send-weekly failed:", e);
+      return res.status(500).json({ message: (e as Error).message || "Cron send failed" });
+    }
   });
 
   try {
