@@ -223,6 +223,18 @@ function generateFromTemplate(template: { templateText: string; solutionTemplate
   };
 }
 
+// Vercel Postgres presents a cert its Node runtime won't chain-verify — every
+// bare `new pg.Client(POSTGRES_URL)` in this file 500s in production with
+// SELF_SIGNED_CERT_IN_CHAIN (works locally since the local trust store
+// differs). server/db.ts's pool already works around this for the Drizzle
+// path; this mirrors that fix for the raw pg.Client calls below.
+function newPgClient(): pg.Client {
+  return new pg.Client({
+    connectionString: process.env.POSTGRES_URL,
+    ssl: process.env.POSTGRES_HOST ? { rejectUnauthorized: false } : undefined,
+  });
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
 
@@ -263,7 +275,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // email rather than overwriting, so a repeat signup adds classes instead
     // of silently dropping the ones from a previous signup.
     try {
-      const db = new pg.Client(process.env.POSTGRES_URL!);
+      const db = newPgClient();
       await db.connect();
       const { rows: existingRows } = await db.query<{ classes: string[] }>(
         "SELECT classes FROM public.signups WHERE email = $1",
@@ -387,7 +399,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // (which just marks one doc due-now and calls this, so anything else already
   // due gets swept up in the same email naturally).
   async function sendDueDocs(): Promise<{ sent: number; docsSent: number; failed: { email: string; error: string }[] }> {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows: due } = await db.query<WeeklyDocRow>(
       "SELECT * FROM public.weekly_docs WHERE scheduled_for <= NOW() AND sent_at IS NULL"
@@ -473,7 +485,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.warn("[weekly-send] RESEND_API_KEY not configured — marking due docs sent without emailing anyone");
     }
 
-    const markDb = new pg.Client(process.env.POSTGRES_URL!);
+    const markDb = newPgClient();
     await markDb.connect();
     await markDb.query("UPDATE public.weekly_docs SET sent_at = NOW() WHERE id = ANY($1)", [due.map(d => d.id)]);
     await markDb.end();
@@ -510,7 +522,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
 
       const scheduledFor = defaultScheduledFor();
-      const db = new pg.Client(process.env.POSTGRES_URL!);
+      const db = newPgClient();
       await db.connect();
       await db.query(
         `INSERT INTO public.weekly_docs (id, class_name, filename, pathname, url, scheduled_for, skills)
@@ -526,7 +538,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: list all uploaded skill sheets ─────────────────────────────────
   app.get("/api/admin/weekly-docs", requireAdmin, async (_req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<WeeklyDocRow>(
       "SELECT * FROM public.weekly_docs ORDER BY scheduled_for ASC"
@@ -578,7 +590,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: signup count ──────────────────────────────────────────────────
   app.get("/api/admin/signup-count", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM public.signups");
     await db.end();
@@ -587,7 +599,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: list all signups (email + classes), independent of weekly docs ─
   app.get("/api/admin/signups", requireAdmin, async (_req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ email: string; classes: string[] }>(
       "SELECT email, classes FROM public.signups ORDER BY email"
@@ -601,7 +613,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { email, classes } = req.body as { email?: string; classes?: string[] };
     if (!email) return res.status(400).json({ message: "email required" });
 
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     await db.query(
       `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
@@ -615,7 +627,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: delete a weekly doc ───────────────────────────────────────────
   app.delete("/api/admin/weekly-docs/:id", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ url: string }>(
       "SELECT url FROM public.weekly_docs WHERE id = $1",
@@ -633,7 +645,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!date) return res.status(400).json({ message: "date required" });
 
     const scheduledFor = new Date(`${date}T15:00:00.000Z`);
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     await db.query(
       "UPDATE public.weekly_docs SET scheduled_for = $1, sent_at = NULL WHERE id = $2",
@@ -646,7 +658,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ─── Admin: preview who a specific doc's send will go to ───────────────────
   app.get("/api/admin/weekly-docs/:id/recipients", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows: docRows } = await db.query<{ class_name: string }>(
       "SELECT class_name FROM public.weekly_docs WHERE id = $1",
@@ -681,7 +693,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { email, excluded } = req.body as { email?: string; excluded?: boolean };
     if (!email) return res.status(400).json({ message: "email required" });
 
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     if (excluded) {
       await db.query(
@@ -703,7 +715,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ─── Admin: send one doc immediately (bundles anything else already due) ──
   app.post("/api/admin/weekly-docs/:id/send-now", requireAdmin, async (req, res) => {
     try {
-      const db = new pg.Client(process.env.POSTGRES_URL!);
+      const db = newPgClient();
       await db.connect();
       await db.query(
         "UPDATE public.weekly_docs SET scheduled_for = NOW(), sent_at = NULL WHERE id = $1",
@@ -1105,7 +1117,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // class" fact — don't make the student say it twice.
       if (resolvedClassCode) {
         try {
-          const db = new pg.Client(process.env.POSTGRES_URL!);
+          const db = newPgClient();
           await db.connect();
           const { rows: existingRows } = await db.query<{ classes: string[] }>(
             "SELECT classes FROM public.signups WHERE email = $1",
@@ -1618,7 +1630,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { className, topics } = req.body as { className?: string; topics?: unknown };
     if (!className || !Array.isArray(topics)) return res.status(400).json({ message: "className and topics required" });
 
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     await db.query(
       "INSERT INTO public.syllabus_timelines (class_name, topics) VALUES ($1, $2)",
@@ -1633,7 +1645,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const className = req.query.className as string | undefined;
     if (!className) return res.status(400).json({ message: "className required" });
 
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ id: string; extracted_at: string; topics: unknown }>(
       "SELECT id, extracted_at, topics FROM public.syllabus_timelines WHERE class_name = $1 ORDER BY extracted_at DESC LIMIT 1",
@@ -1676,7 +1688,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // extracted text for something else (e.g. building a course from the same
   // upload) don't parse each PDF twice.
   async function saveParsedClassDocuments(classCode: string, parsed: ParsedPdf[], uploadedBy: string): Promise<ClassDocumentRow[]> {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const created: ClassDocumentRow[] = [];
     for (const { file, buffer, text } of parsed) {
@@ -1703,7 +1715,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // prompt; most recently uploaded material is kept first as the more likely
   // relevant/current one.
   async function getClassDocumentsText(classCode: string): Promise<string> {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ filename: string; extracted_text: string }>(
       "SELECT filename, extracted_text FROM public.class_documents WHERE class_code = $1 ORDER BY uploaded_at DESC",
@@ -1734,7 +1746,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   );
 
   app.get("/api/admin/classes/:classCode/documents", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<Omit<ClassDocumentRow, "extracted_text">>(
       "SELECT id, class_code, filename, url, uploaded_by, uploaded_at FROM public.class_documents WHERE class_code = $1 ORDER BY uploaded_at DESC",
@@ -1745,7 +1757,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.delete("/api/admin/classes/:classCode/documents/:id", requireAdmin, async (req, res) => {
-    const db = new pg.Client(process.env.POSTGRES_URL!);
+    const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ url: string }>(
       "SELECT url FROM public.class_documents WHERE id = $1 AND class_code = $2",
@@ -1825,7 +1837,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const course = classCourses[bestIdx];
       const tools = toolsByCourse[bestIdx];
 
-      const timelineDb = new pg.Client(process.env.POSTGRES_URL!);
+      const timelineDb = newPgClient();
       await timelineDb.connect();
       const { rows: timelineRows } = await timelineDb.query<{ topics: unknown }>(
         "SELECT topics FROM public.syllabus_timelines WHERE class_name = $1 ORDER BY extracted_at DESC LIMIT 1",
@@ -1884,7 +1896,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             contentType: "application/pdf",
           });
 
-          const docDb = new pg.Client(process.env.POSTGRES_URL!);
+          const docDb = newPgClient();
           await docDb.connect();
           await docDb.query(
             `INSERT INTO public.weekly_docs (id, class_name, filename, pathname, url, scheduled_for, skills)
