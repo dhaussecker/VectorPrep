@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
+import { SUPABASE_CA_CERT } from "./supabaseCa";
 
 const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
@@ -15,7 +16,7 @@ const pool = new Pool({
         port: 5432,
       }),
   max: 1,
-  ssl: { rejectUnauthorized: false },
+  ssl: { ca: SUPABASE_CA_CERT },
 });
 
 export const db = drizzle(pool, { schema });

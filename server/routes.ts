@@ -18,6 +18,7 @@ import { searchYouTubeVideos } from "./youtube";
 import { buildSkillSheetHtml, type SkillSheetContent } from "./skillSheetRenderer";
 import type { User } from "@shared/schema";
 import { CLASSES, matchClassCode, normalizeClassCode } from "@shared/classes";
+import { SUPABASE_CA_CERT } from "./supabaseCa";
 
 // esbuild empties `import.meta` in CJS builds, so fileURLToPath(import.meta.url)
 // throws there — fall back to it only when native __filename isn't already in
@@ -223,17 +224,14 @@ function generateFromTemplate(template: { templateText: string; solutionTemplate
   };
 }
 
-// Vercel Postgres presents a cert its Node runtime won't chain-verify — every
-// bare `new pg.Client(POSTGRES_URL)` in this file 500s in production with
-// SELF_SIGNED_CERT_IN_CHAIN (works locally since the local trust store
-// differs). server/db.ts's pool works around this the same way for the
-// Drizzle path, but gates it on `POSTGRES_HOST` being set — unconfirmed
-// whether that var actually exists in the Vercel prod environment, so this
-// applies unconditionally instead of inheriting that same assumption.
+// Supabase's Postgres chain roots at their own private CA, which Node's
+// default trust store doesn't know — rejectUnauthorized: false alone did
+// NOT suppress SELF_SIGNED_CERT_IN_CHAIN in Vercel's runtime (unlike stock
+// Node), so this passes the actual CA to verify the chain properly instead.
 function newPgClient(): pg.Client {
   return new pg.Client({
-    connectionString: process.env.POSTGRES_URL,
-    ssl: { rejectUnauthorized: false },
+    connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+    ssl: { ca: SUPABASE_CA_CERT },
   });
 }
 
@@ -757,7 +755,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Auto-migrate new profile columns
   try {
     const { Pool } = await import("pg");
-    const migPool = new Pool({ connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL });
+    const migPool = new Pool({
+      connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+      ssl: { ca: SUPABASE_CA_CERT },
+    });
     await migPool.query(`
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program text;
       ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program_courses jsonb;
