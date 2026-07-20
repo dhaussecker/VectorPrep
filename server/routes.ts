@@ -226,12 +226,14 @@ function generateFromTemplate(template: { templateText: string; solutionTemplate
 // Vercel Postgres presents a cert its Node runtime won't chain-verify — every
 // bare `new pg.Client(POSTGRES_URL)` in this file 500s in production with
 // SELF_SIGNED_CERT_IN_CHAIN (works locally since the local trust store
-// differs). server/db.ts's pool already works around this for the Drizzle
-// path; this mirrors that fix for the raw pg.Client calls below.
+// differs). server/db.ts's pool works around this the same way for the
+// Drizzle path, but gates it on `POSTGRES_HOST` being set — unconfirmed
+// whether that var actually exists in the Vercel prod environment, so this
+// applies unconditionally instead of inheriting that same assumption.
 function newPgClient(): pg.Client {
   return new pg.Client({
     connectionString: process.env.POSTGRES_URL,
-    ssl: process.env.POSTGRES_HOST ? { rejectUnauthorized: false } : undefined,
+    ssl: { rejectUnauthorized: false },
   });
 }
 
