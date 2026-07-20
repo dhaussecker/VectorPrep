@@ -15,7 +15,7 @@ const pool = new Pool({
         port: 5432,
       }),
   max: 1,
-  ssl: process.env.POSTGRES_HOST ? { rejectUnauthorized: false } : undefined,
+  ssl: { rejectUnauthorized: false },
 });
 
 export const db = drizzle(pool, { schema });
