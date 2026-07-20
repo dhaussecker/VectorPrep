@@ -625,6 +625,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.json({ ok: true });
   });
 
+  // ─── Admin: remove a signup ─────────────────────────────────────────────────
+  app.delete("/api/admin/signups/:email", requireAdmin, async (req, res) => {
+    const db = newPgClient();
+    await db.connect();
+    await db.query("DELETE FROM public.signups WHERE email = $1", [req.params.email]);
+    await db.end();
+    return res.json({ ok: true });
+  });
+
   // ─── Admin: delete a weekly doc ───────────────────────────────────────────
   app.delete("/api/admin/weekly-docs/:id", requireAdmin, async (req, res) => {
     const db = newPgClient();

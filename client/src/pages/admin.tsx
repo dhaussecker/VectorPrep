@@ -3326,6 +3326,19 @@ function AllSignupsPanel() {
     }
   }
 
+  async function handleRemove(email: string) {
+    if (!confirm(`Remove ${email} from signups?`)) return;
+    const res = await fetch(`/api/admin/signups/${encodeURIComponent(email)}`, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    });
+    if (res.ok) {
+      setSignups(prev => prev.filter(s => s.email !== email));
+    } else {
+      toast({ title: "Failed to remove", variant: "destructive" });
+    }
+  }
+
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
   const filtered = classFilter === "all"
     ? signups
@@ -3416,9 +3429,14 @@ function AllSignupsPanel() {
                         )}
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => startEdit(s)} className="shrink-0">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex items-center shrink-0">
+                      <Button variant="ghost" size="icon" onClick={() => startEdit(s)}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemove(s.email)}>
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
