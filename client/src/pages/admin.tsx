@@ -2800,18 +2800,12 @@ function WeeklyEmailsManager() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Skill sheet PDF</Label>
-              <div className="flex gap-2">
-                <Input
-                  ref={fileRef}
-                  type="file"
-                  accept="application/pdf"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)}
-                  className="flex-1"
-                />
-                <Button onClick={handleUpload} disabled={!file || uploading}>
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                </Button>
-              </div>
+              <Input
+                ref={fileRef}
+                type="file"
+                accept="application/pdf"
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -2822,6 +2816,12 @@ function WeeklyEmailsManager() {
               accept=".js"
               onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
             />
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handleUpload} disabled={!file || uploading}>
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload
+            </Button>
           </div>
         </CardContent>
       </Card>
