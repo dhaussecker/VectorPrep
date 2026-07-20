@@ -2633,6 +2633,7 @@ function WeeklyEmailsManager() {
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [expandedSkillsId, setExpandedSkillsId] = useState<string | null>(null);
   const [docClassFilter, setDocClassFilter] = useState<string>("all");
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [recipientsByDoc, setRecipientsByDoc] = useState<Record<string, DocRecipient[]>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const skillsFileRef = useRef<HTMLInputElement>(null);
@@ -2724,6 +2725,7 @@ function WeeklyEmailsManager() {
       setSkillsFile(null);
       if (fileRef.current) fileRef.current.value = "";
       if (skillsFileRef.current) skillsFileRef.current.value = "";
+      setUploadOpen(false);
       loadDocs();
     } else {
       const data = await res.json().catch(() => null);
@@ -2784,62 +2786,25 @@ function WeeklyEmailsManager() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Upload a skill sheet</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Class</Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Skill sheet PDF</Label>
-              <Input
-                ref={fileRef}
-                type="file"
-                accept="application/pdf"
-                onChange={e => setFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Skills file (optional)</Label>
-            <Input
-              ref={skillsFileRef}
-              type="file"
-              accept=".js"
-              onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleUpload} disabled={!file || uploading}>
-              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-              Upload
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm">
             Skill sheets ({filteredDocs.length}{docClassFilter !== "all" ? ` of ${docs.length}` : ""})
           </CardTitle>
-          <Select value={docClassFilter} onValueChange={setDocClassFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
-              {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={docClassFilter} onValueChange={setDocClassFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classes</SelectItem>
+                {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => setUploadOpen(true)}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Upload
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {filteredDocs.length === 0 ? (
@@ -2965,6 +2930,52 @@ function WeeklyEmailsManager() {
         bundled into one email per student. Each student only receives sheets for the classes they signed up for,
         unless opted out above.
       </p>
+
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload a skill sheet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Class</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Skill sheet PDF</Label>
+              <Input
+                ref={fileRef}
+                type="file"
+                accept="application/pdf"
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Skills file (optional)</Label>
+              <Input
+                ref={skillsFileRef}
+                type="file"
+                accept=".js"
+                onChange={e => setSkillsFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpload} disabled={!file || uploading}>
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
