@@ -1,7 +1,7 @@
 import { eq, and, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, userProfiles, badges, courses, tools, toolContent, tasks,
+  users, badges, courses, tools, toolContent, tasks,
   userTaskProgress, userContentProgress, questionTemplates,
   userPracticeProgress, practiceAttempts, cheatSheetEntries,
   inviteCodes, studyPlans,
@@ -132,49 +132,45 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  // ─── User Profiles ────────────────────────────────────────────────
+  // ─── User Profiles (XP/level/streak/program — same row as the account) ──
 
   async getUserProfile(userId: string): Promise<UserProfile | undefined> {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    return profile;
+    return this.getUser(userId);
   }
 
   async createUserProfile(userId: string): Promise<UserProfile> {
-    const [created] = await db.insert(userProfiles).values({ userId }).returning();
-    return created;
+    const existing = await this.getUser(userId);
+    if (!existing) throw new Error(`Cannot create profile for unknown user ${userId}`);
+    return existing;
   }
 
   async updateUserProfile(userId: string, data: Partial<Omit<UserProfile, "id" | "userId">>): Promise<UserProfile> {
-    const existing = await this.getUserProfile(userId);
-    if (!existing) {
-      return this.createUserProfile(userId);
-    }
-    const [updated] = await db.update(userProfiles).set(data).where(eq(userProfiles.userId, userId)).returning();
+    const [updated] = await db.update(users).set(data).where(eq(users.id, userId)).returning();
     return updated;
   }
 
   async awardXP(userId: string, xp: number): Promise<UserProfile> {
-    let profile = await this.getUserProfile(userId);
-    if (!profile) profile = await this.createUserProfile(userId);
+    const profile = await this.getUser(userId);
+    if (!profile) throw new Error(`Cannot award XP to unknown user ${userId}`);
     const newXp = profile.xp + xp;
     const newLevel = Math.floor(newXp / 500) + 1;
-    const [updated] = await db.update(userProfiles)
+    const [updated] = await db.update(users)
       .set({ xp: newXp, level: newLevel })
-      .where(eq(userProfiles.userId, userId))
+      .where(eq(users.id, userId))
       .returning();
     return updated;
   }
 
   async updateStreak(userId: string): Promise<UserProfile> {
-    let profile = await this.getUserProfile(userId);
-    if (!profile) profile = await this.createUserProfile(userId);
+    const profile = await this.getUser(userId);
+    if (!profile) throw new Error(`Cannot update streak for unknown user ${userId}`);
     const today = new Date().toISOString().split("T")[0];
     if (profile.lastActiveDate === today) return profile;
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
     const newStreak = profile.lastActiveDate === yesterday ? profile.streak + 1 : 1;
-    const [updated] = await db.update(userProfiles)
+    const [updated] = await db.update(users)
       .set({ streak: newStreak, lastActiveDate: today })
-      .where(eq(userProfiles.userId, userId))
+      .where(eq(users.id, userId))
       .returning();
     return updated;
   }

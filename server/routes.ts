@@ -241,6 +241,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ─── Public signup (no auth required) ─────────────────────────────────────
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+  // Signing up for weekly emails and having an account are the same "person
+  // who wants in" fact — this finds their user row, or creates a passwordless
+  // Supabase Auth account for them if they've never registered. They can
+  // reset their password later if they ever want to log in with it.
+  async function getOrCreateUserForSignup(email: string, displayName?: string): Promise<User> {
+    const existing = await storage.getUserByEmail(email);
+    if (existing) return existing;
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: randomUUID(),
+      email_confirm: true,
+    });
+    if (error) throw error;
+    return storage.createUser({
+      id: data.user.id,
+      email,
+      displayName: displayName || email.split("@")[0],
+    });
+  }
+
+  function mergeClasses(existing: string[], incoming: string[]): string[] {
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+    const seen = new Set(existing.map(normalize));
+    const merged = [...existing];
+    for (const c of incoming) {
+      if (!seen.has(normalize(c))) {
+        merged.push(c);
+        seen.add(normalize(c));
+      }
+    }
+    return merged;
+  }
+
   app.post("/api/signup", async (req, res) => {
     const { email, classes } = req.body as { email?: string; classes?: string[] };
     if (!email) return res.status(400).json({ message: "Email required" });
@@ -271,31 +304,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }).catch(e => console.error("[resend]", e));
     }
 
-    // Persist signup to Supabase — merge with any existing classes for this
-    // email rather than overwriting, so a repeat signup adds classes instead
-    // of silently dropping the ones from a previous signup.
+    // Persist as a real users row — merge with any existing subscribed
+    // classes for this email rather than overwriting, so a repeat signup
+    // adds classes instead of silently dropping the ones from a previous
+    // signup.
     try {
+      const user = await getOrCreateUserForSignup(email);
+      const mergedClasses = mergeClasses((user.subscribedClasses as string[]) ?? [], classes ?? []);
       const db = newPgClient();
       await db.connect();
-      const { rows: existingRows } = await db.query<{ classes: string[] }>(
-        "SELECT classes FROM public.signups WHERE email = $1",
-        [email]
-      );
-      const existingClasses = existingRows[0]?.classes ?? [];
-      const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "");
-      const seen = new Set(existingClasses.map(normalize));
-      const mergedClasses = [...existingClasses];
-      for (const c of classes ?? []) {
-        if (!seen.has(normalize(c))) {
-          mergedClasses.push(c);
-          seen.add(normalize(c));
-        }
-      }
-      await db.query(
-        `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
-         ON CONFLICT (email) DO UPDATE SET classes = $2`,
-        [email, mergedClasses]
-      );
+      await db.query("UPDATE public.users SET subscribed_classes = $2 WHERE id = $1", [user.id, JSON.stringify(mergedClasses)]);
       await db.end();
     } catch (e) {
       console.warn("[signup] DB write failed:", (e as Error).message);
@@ -410,7 +428,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
-      "SELECT email, classes FROM public.signups"
+      "SELECT email, subscribed_classes AS classes FROM public.users WHERE subscribed_classes IS NOT NULL"
     );
     const { rows: exclusions } = await db.query<{ doc_id: string; email: string }>(
       "SELECT doc_id, email FROM public.weekly_doc_exclusions WHERE doc_id = ANY($1)",
@@ -592,17 +610,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/admin/signup-count", requireAdmin, async (req, res) => {
     const db = newPgClient();
     await db.connect();
-    const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM public.signups");
+    const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM public.users WHERE subscribed_classes IS NOT NULL");
     await db.end();
     return res.json({ count: rows[0].count });
   });
 
-  // ─── Admin: list all signups (email + classes), independent of weekly docs ─
+  // ─── Admin: list everyone subscribed to weekly emails (email + classes) ────
   app.get("/api/admin/signups", requireAdmin, async (_req, res) => {
     const db = newPgClient();
     await db.connect();
     const { rows } = await db.query<{ email: string; classes: string[] }>(
-      "SELECT email, classes FROM public.signups ORDER BY email"
+      "SELECT email, subscribed_classes AS classes FROM public.users WHERE subscribed_classes IS NOT NULL ORDER BY email"
     );
     await db.end();
     return res.json({ signups: rows });
@@ -613,23 +631,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { email, classes } = req.body as { email?: string; classes?: string[] };
     if (!email) return res.status(400).json({ message: "email required" });
 
+    const user = await getOrCreateUserForSignup(email);
     const db = newPgClient();
     await db.connect();
-    await db.query(
-      `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
-       ON CONFLICT (email) DO UPDATE SET classes = $2`,
-      [email, classes ?? []]
-    );
+    await db.query("UPDATE public.users SET subscribed_classes = $2 WHERE id = $1", [user.id, JSON.stringify(classes ?? [])]);
     await db.end();
 
     return res.json({ ok: true });
   });
 
-  // ─── Admin: remove a signup ─────────────────────────────────────────────────
+  // ─── Admin: remove a signup (unsubscribes them, doesn't delete the account) ─
   app.delete("/api/admin/signups/:email", requireAdmin, async (req, res) => {
     const db = newPgClient();
     await db.connect();
-    await db.query("DELETE FROM public.signups WHERE email = $1", [req.params.email]);
+    await db.query("UPDATE public.users SET subscribed_classes = NULL WHERE email = $1", [req.params.email]);
     await db.end();
     return res.json({ ok: true });
   });
@@ -680,7 +695,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const className = docRows[0].class_name;
 
     const { rows: signups } = await db.query<{ email: string; classes: string[] }>(
-      "SELECT email, classes FROM public.signups"
+      "SELECT email, subscribed_classes AS classes FROM public.users WHERE subscribed_classes IS NOT NULL"
     );
     const { rows: exclusions } = await db.query<{ email: string }>(
       "SELECT email FROM public.weekly_doc_exclusions WHERE doc_id = $1",
@@ -769,10 +784,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       ssl: { ca: SUPABASE_CA_CERT },
     });
     await migPool.query(`
-      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program text;
-      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS program_courses jsonb;
-      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selected_course_names jsonb;
-      ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS syllabus_outcomes jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS subscribed_classes jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS xp integer NOT NULL DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS level integer NOT NULL DEFAULT 1;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS streak integer NOT NULL DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_date text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS program text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS program_courses jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_course_names jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS syllabus_outcomes jsonb;
 
       DROP TABLE IF EXISTS public.weekly_send_exclusions;
       DROP TABLE IF EXISTS public.weekly_send_schedule;
@@ -818,6 +838,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     `);
     await migPool.end();
   } catch (e) { console.warn("Profile column migration skipped:", e); }
+
+  // Ensure the Supabase Storage bucket for class documents (syllabi/lecture
+  // notes) exists. Private — files are only reachable via signed URLs.
+  try {
+    const { error } = await supabaseAdmin.storage.createBucket("documents", { public: false });
+    if (error && !/already exists/i.test(error.message)) throw error;
+  } catch (e) { console.warn("Storage bucket setup skipped:", e); }
 
   // ─── Courses ──────────────────────────────────────────────────────
 
@@ -1129,19 +1156,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // class" fact — don't make the student say it twice.
       if (resolvedClassCode) {
         try {
-          const db = newPgClient();
-          await db.connect();
-          const { rows: existingRows } = await db.query<{ classes: string[] }>(
-            "SELECT classes FROM public.signups WHERE email = $1",
-            [user.email]
-          );
-          const existingClasses = existingRows[0]?.classes ?? [];
+          const existingClasses = (user.subscribedClasses as string[]) ?? [];
           const alreadyEnrolled = existingClasses.some(c => normalizeClassCode(c) === normalizeClassCode(resolvedClassCode!));
           const mergedClasses = alreadyEnrolled ? existingClasses : [...existingClasses, resolvedClassCode];
+          const db = newPgClient();
+          await db.connect();
           await db.query(
-            `INSERT INTO public.signups (email, classes) VALUES ($1, $2)
-             ON CONFLICT (email) DO UPDATE SET classes = $2`,
-            [user.email, mergedClasses]
+            "UPDATE public.users SET subscribed_classes = $2 WHERE id = $1",
+            [user.id, JSON.stringify(mergedClasses)]
           );
           await db.end();
         } catch (e) { console.error("[syllabus-upload] signups enroll failed:", e); }
@@ -1706,14 +1728,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     for (const { file, buffer, text } of parsed) {
       const id = randomUUID();
       const sanitizedFilename = file.originalname.replace(/[^\w.\-]/g, "_");
-      const blob = await put(`class-documents/${classCode}/${id}/${sanitizedFilename}`, buffer, {
-        access: "private",
-        contentType: "application/pdf",
-      });
+      const storagePath = `${classCode}/${id}/${sanitizedFilename}`;
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("documents")
+        .upload(storagePath, buffer, { contentType: "application/pdf" });
+      if (uploadError) throw uploadError;
+      const { data: signedUrlData } = await supabaseAdmin.storage
+        .from("documents")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
       const { rows } = await db.query<ClassDocumentRow>(
         `INSERT INTO public.class_documents (id, class_code, filename, pathname, url, extracted_text, uploaded_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, class_code, filename, url, extracted_text, uploaded_by, uploaded_at`,
-        [id, classCode, file.originalname, blob.pathname, blob.url, text, uploadedBy]
+        [id, classCode, file.originalname, storagePath, signedUrlData?.signedUrl ?? "", text, uploadedBy]
       );
       created.push(rows[0]);
     }
@@ -1771,11 +1797,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.delete("/api/admin/classes/:classCode/documents/:id", requireAdmin, async (req, res) => {
     const db = newPgClient();
     await db.connect();
-    const { rows } = await db.query<{ url: string }>(
-      "SELECT url FROM public.class_documents WHERE id = $1 AND class_code = $2",
+    const { rows } = await db.query<{ pathname: string }>(
+      "SELECT pathname FROM public.class_documents WHERE id = $1 AND class_code = $2",
       [req.params.id, req.params.classCode]
     );
-    if (rows[0]) await del(rows[0].url);
+    if (rows[0]) await supabaseAdmin.storage.from("documents").remove([rows[0].pathname]);
     await db.query("DELETE FROM public.class_documents WHERE id = $1", [req.params.id]);
     await db.end();
     res.json({ ok: true });

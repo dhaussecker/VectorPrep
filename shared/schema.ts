@@ -8,11 +8,17 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   displayName: text("display_name").notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
-});
-
-export const userProfiles = pgTable("user_profiles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().unique(),
+  // Classes this person wants weekly skill-sheet emails for. Absorbs what
+  // used to be the separate `signups` table — landing-page signups and real
+  // accounts are the same "person who wants in" fact, so a signup with no
+  // account yet gets a passwordless account created for it instead of a
+  // second row in a second table.
+  subscribedClasses: jsonb("subscribed_classes"),
+  // XP/level/streak/program — absorbs what used to be the separate
+  // user_profiles table. Strictly 1:1 with the account (every user has
+  // exactly one of these), always fetched together with the rest of the
+  // user in practice, so there was no real relationship left to justify
+  // a second table.
   xp: integer("xp").notNull().default(0),
   level: integer("level").notNull().default(1),
   streak: integer("streak").notNull().default(0),
@@ -172,7 +178,6 @@ export const insertCheatSheetEntrySchema = createInsertSchema(cheatSheetEntries)
 export const insertPracticeAttemptSchema = createInsertSchema(practiceAttempts).omit({ id: true });
 export const insertStudyPlanSchema = createInsertSchema(studyPlans).omit({ id: true, createdAt: true });
 export const insertInviteCodeSchema = createInsertSchema(inviteCodes).omit({ id: true });
-export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true });
 export const insertBadgeSchema = createInsertSchema(badges).omit({ id: true });
 
 export const loginSchema = z.object({
@@ -188,7 +193,7 @@ export const registerSchema = loginSchema.extend({
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
-export type UserProfile = typeof userProfiles.$inferSelect;
+export type UserProfile = User;
 export type Badge = typeof badges.$inferSelect;
 export type Course = typeof courses.$inferSelect;
 export type InsertCourse = z.infer<typeof insertCourseSchema>;
